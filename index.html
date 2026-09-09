@@ -34,7 +34,7 @@ img{max-width:100%}
   --accent:#0E7061; --accent-soft:#E2F0ED; --bar:#0E8A72; --bar-soft:#E1F1EC;
   --pA:#1F6FB2; --pA-soft:#E6EFF8;
   --pB:#C56A16; --pB-soft:#FAEDE0;
-  --neg:#B3352C; --pos:#0E7061; --bibik:#B5348A; --bibik-soft:#FAE9F4;
+  --neg:#B3352C; --pos:#0E7061; --bibik:#B5348A; --bibik-soft:#FAE9F4; --online:#15803D;
   --v1-bg:#EFE8FB; --v1-fg:#6B3FC4; --v1-bd:#D9CBF4;   /* 예금 · 보라 */
   --v2-bg:#FCE8F0; --v2-fg:#C0357A; --v2-bd:#F4CDDF;   /* 적금 · 자주 */
   --v3-bg:#FAF1DA; --v3-fg:#8F6D12; --v3-bd:#EEDFB6;   /* 투자 · 금색 */
@@ -52,7 +52,7 @@ img{max-width:100%}
     --accent:#3FB8A2; --accent-soft:#123029; --bar:#2FA890; --bar-soft:#12302A;
     --pA:#4E93D8; --pA-soft:#152435;
     --pB:#CB7A2C; --pB-soft:#2E2114;
-    --neg:#E27367; --pos:#3FB8A2; --bibik:#DE73B4; --bibik-soft:#301A28;
+    --neg:#E27367; --pos:#3FB8A2; --bibik:#DE73B4; --bibik-soft:#301A28; --online:#4ADE80;
     --v1-bg:#251C3C; --v1-fg:#8F5FDB; --v1-bd:#3B2C60;
     --v2-bg:#351A28; --v2-fg:#D9558F; --v2-bd:#54293E;
     --v3-bg:#2E2712; --v3-fg:#A88420; --v3-bd:#473A1C;
@@ -66,7 +66,7 @@ img{max-width:100%}
   --accent:#3FB8A2; --accent-soft:#123029; --bar:#2FA890; --bar-soft:#12302A;
   --pA:#4E93D8; --pA-soft:#152435;
   --pB:#CB7A2C; --pB-soft:#2E2114;
-  --neg:#E27367; --pos:#3FB8A2; --bibik:#DE73B4; --bibik-soft:#301A28;
+  --neg:#E27367; --pos:#3FB8A2; --bibik:#DE73B4; --bibik-soft:#301A28; --online:#4ADE80;
   --v1-bg:#251C3C; --v1-fg:#8F5FDB; --v1-bd:#3B2C60;
   --v2-bg:#351A28; --v2-fg:#D9558F; --v2-bd:#54293E;
   --v3-bg:#2E2712; --v3-fg:#A88420; --v3-bd:#473A1C;
@@ -139,6 +139,20 @@ header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--s
 #btn-account.avatar:hover{border-color:var(--accent)}
 #btn-account.avatar .ini{font-size:12.5px;font-weight:700;color:var(--accent);line-height:1}
 #btn-account.avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+
+/* 지금 같이 보고 있는 사람 */
+.peers{display:flex;align-items:center}
+.peers[hidden]{display:none}
+.peer{position:relative;width:30px;height:30px;border-radius:50%;flex:none;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--surface-2);border:1px solid var(--line);
+  box-shadow:0 0 0 2px var(--surface)}
+.peer+.peer{margin-left:-9px}
+.peer .ini{font-size:12.5px;font-weight:700;color:var(--muted);line-height:1}
+.peer img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  display:block;border-radius:50%}
+.peer .dot{position:absolute;right:-1px;bottom:-1px;width:9px;height:9px;border-radius:50%;
+  background:var(--online);border:2px solid var(--surface);z-index:2}
 .acct-row{display:flex;align-items:baseline;gap:9px;font-size:13px;padding:7px 0;
   border-bottom:1px solid var(--line-soft)}
 .acct-row:last-of-type{border-bottom:none}
@@ -560,6 +574,7 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
     </nav>
     <span class="mini" id="mini" hidden></span>
     <div class="io">
+      <div class="peers" id="peers" hidden></div>
       <button class="ghost" id="btn-account" title="계정">로그인</button>
       <button class="ghost icon" id="btn-undo" title="실행취소 (Ctrl+Z)" disabled>↶</button>
       <button class="ghost icon" id="btn-redo" title="다시 실행 (Ctrl+Shift+Z)" disabled>↷</button>
@@ -2359,6 +2374,71 @@ $('#gate-alt').addEventListener('click', async ()=>{
 });
 
 /* ---------- 계정 ---------- */
+/* 동그란 프로필 아이콘. 사진이 없거나 못 불러오면 이름 첫 글자가 남는다. */
+function fillAvatar(box, name, photo){
+  box.innerHTML='';
+  const ini=el('span','ini', (String(name||'?').trim()||'?').charAt(0).toUpperCase());
+  box.appendChild(ini);
+  if(photo){
+    const im=el('img');
+    im.referrerPolicy='no-referrer'; im.alt='';
+    im.addEventListener('load',()=>{ ini.hidden=true; });
+    im.addEventListener('error',()=>{ im.remove(); });
+    im.src=photo;
+    box.appendChild(im);
+  }
+  return box;
+}
+
+/* ===== 지금 같이 보고 있는 사람 =====
+   각자 자기 자리에 30초마다 시각을 적고, 서로의 자리를 지켜본다.
+   2분 넘게 소식이 없으면 나간 것으로 본다. */
+const PEER_TTL = 120000, BEAT_MS = 30000;
+let PRESENCE=[], unsubPeers=null, beatTimer=null;
+function relTime(ms){
+  const m=Math.floor(ms/60000);
+  if(m<1) return '방금';
+  if(m<60) return m+'분 전';
+  const h=Math.floor(m/60); return h<24 ? h+'시간 전' : Math.floor(h/24)+'일 전';
+}
+function paintPeers(){
+  const box=$('#peers'); if(!box) return;
+  const now=Date.now();
+  const mine=USER&&USER.uid;
+  const others=PRESENCE.filter(x=>x.uid!==mine && (now-(x.at||0))<PEER_TTL)
+                       .sort((a,b)=>(b.at||0)-(a.at||0));
+  box.innerHTML='';
+  others.forEach(x=>{
+    const a=el('div','peer');
+    fillAvatar(a, x.name, x.photo);
+    a.appendChild(el('span','dot'));
+    a.title=(x.name||'함께 쓰는 분')+' · 접속중';
+    box.appendChild(a);
+  });
+  box.hidden = !others.length;
+}
+function stopPresence(){
+  if(unsubPeers){ unsubPeers(); unsubPeers=null; }
+  if(beatTimer){ clearInterval(beatTimer); beatTimer=null; }
+  PRESENCE=[]; paintPeers();
+}
+function startPresence(){
+  stopPresence();
+  if(!fbStore || !HID || !USER) return;
+  const ref=fbStore.doc('households/'+HID+'/presence/'+USER.uid);
+  const beat=()=> ref.set({ name:USER.displayName||USER.email||'',
+                            photo:USER.photoURL||'', at:Date.now() }).catch(()=>{});
+  beat();
+  beatTimer=setInterval(()=>{ if(!document.hidden) beat(); }, BEAT_MS);
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) beat(); });
+  window.addEventListener('beforeunload',()=>{ try{ ref.delete(); }catch(e){} });
+  unsubPeers=fbStore.collection('households/'+HID+'/presence').onSnapshot(snap=>{
+    PRESENCE=snap.docs.map(d=>Object.assign({uid:d.id}, d.data()));
+    paintPeers();
+  }, ()=>{});
+  setInterval(paintPeers, 20000);   // 시간이 지나 사라지는 것도 반영
+}
+
 function paintAccount(){
   const b=$('#btn-account');
   if(!CLOUD_ON){ b.hidden=true; return; }
@@ -2367,16 +2447,7 @@ function paintAccount(){
   if(USER){
     b.classList.add('on','avatar');
     const who=(USER.displayName||USER.email||'').trim();
-    const ini=el('span','ini', (who||'?').charAt(0).toUpperCase());
-    b.appendChild(ini);
-    if(USER.photoURL){                      // 구글 프로필 사진, 실패하면 첫 글자로 남는다
-      const im=el('img');
-      im.referrerPolicy='no-referrer'; im.alt='';
-      im.addEventListener('load',()=>{ ini.hidden=true; });
-      im.addEventListener('error',()=>{ im.remove(); });
-      im.src=USER.photoURL;
-      b.appendChild(im);
-    }
+    fillAvatar(b, who, USER.photoURL);
     b.title = who + (USER.email && who!==USER.email ? ' · '+USER.email : '')
             + ' — 눌러서 계정 · 함께 쓰기 · 로그아웃';
     b.setAttribute('aria-label','계정: '+who);
@@ -2447,6 +2518,7 @@ async function accountDialog(){
       HID=hid;
       const h=await fbStore.doc('households/'+hid).get(); HOUSE=h.data();
       await startWith(cloudDB(hid), '함께 쓰는 가계부');
+      startPresence();
       showToast('같은 가계부에 참여했습니다.');
     }catch(e){ err.textContent = e && e.message || String(e); }
   });
@@ -2518,6 +2590,7 @@ async function offerUpload(localStore){
         HID=await ensureHousehold(user);
         const h=await fbStore.doc('households/'+HID).get(); HOUSE=h.data();
         await startWith(cloudDB(HID), '서버에 저장됨');
+        startPresence();
         started=true;
         /* 서버가 이미 채워져 있거나 한 번 물어봤으면 다시 묻지 않는다.
            예전에는 월 문서가 도착하기 전에 판단해서 매번 다시 떴다. */
@@ -2532,6 +2605,7 @@ async function offerUpload(localStore){
       }
     }else{
       started=true;
+      stopPresence();
       lockGate();            // 로그아웃 상태 — 안의 내용을 그리지 않는다
     }
   });
