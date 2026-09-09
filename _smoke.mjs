@@ -82,6 +82,7 @@ const win = {
   IntersectionObserver: class { observe(){} disconnect(){} },
   Intl, JSON, Math, Date, isNaN, parseFloat, console, URL:{createObjectURL:()=> 'blob:x', revokeObjectURL(){}},
   Blob: class {}, FileReader: class { readAsText(){} },
+  Image: class { set src(v){ this._s=v; } get src(){ return this._s; } },
 };
 win.window = win;
 
@@ -91,9 +92,9 @@ process.on('unhandledRejection', e => errors.push('rejected: ' + (e && e.message
 
 try {
   const fn = new Function('window','document','localStorage','getComputedStyle','IntersectionObserver',
-                          'requestAnimationFrame','Blob','FileReader','URL','navigator','alert', script);
+                          'requestAnimationFrame','Blob','FileReader','URL','navigator','alert','Image', script);
   fn(win, doc, win.localStorage, win.getComputedStyle, win.IntersectionObserver,
-     win.requestAnimationFrame, win.Blob, win.FileReader, win.URL, {}, ()=>{});
+     win.requestAnimationFrame, win.Blob, win.FileReader, win.URL, {}, ()=>{}, win.Image);
   console.log('스크립트 로드: 예외 없음');
 } catch (e) {
   console.log('스크립트 로드 실패 ✗ :', e.message);
@@ -114,12 +115,15 @@ setTimeout(() => {
   console.log('자산 큰 섹션 수   :', asec, '| 표', tbl, '| 메모 셀', memo);
   console.log('총액 스트립 자식  :', total ? total.children.length : 0);
   console.log('비동기 오류       :', errors.length ? errors : '없음');
-  if (!rows || asec !== 2 || !memo) process.exitCode = 1;
+  if (rows !== 0 || doc.querySelector('#gate').hidden !== false) process.exitCode = 1;
 
   const undoBtn = doc.querySelector('#btn-undo');
   console.log('실행취소 버튼      :', undoBtn ? '있음' : '없음');
   console.log('식생품 패널        :', doc.querySelector('#grocery') ? '있음' : '없음');
   console.log('드래그 손잡이      :', doc.querySelector('#ledger').querySelectorAll('.grip').length + '개');
+  const gate = doc.querySelector('#gate');
+  console.log('로그인 게이트      :', gate.hidden === false ? '닫혀 있음(로그인 필요) — 정상' : '열려 있음 !!');
+  console.log('본문 렌더 차단     :', rows === 0 ? '정상' : '내용이 그려짐 !!');
   const acct = doc.querySelector('#btn-account');
   console.log('계정 버튼          :', acct ? (acct.hidden ? '숨김(설정 없음 — 정상)' : '보임') : '없음');
   console.log('테마 버튼          :', doc.querySelector('#btn-theme').textContent || '(빈값)');

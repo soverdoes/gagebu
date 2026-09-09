@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>두 사람 가계부</title>
+<title>곳간 — 두 사람 가계부</title>
 <style>
 /* 독립 실행용 기본값 (아티팩트 래퍼가 주던 것) */
 html{color-scheme:light dark}
@@ -66,6 +66,40 @@ img{max-width:100%}
   --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -14px rgba(0,0,0,.7);
 }
 *{box-sizing:border-box}
+
+/* ---- 로그인 게이트 ---- */
+.gate{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:#171310}
+.gate[hidden]{display:none!important}
+.gate-bg{position:absolute;inset:0;background:#171310 center/cover no-repeat;
+  filter:brightness(.62) saturate(.85)}
+.gate-bg::after{content:"";position:absolute;inset:0;
+  background:radial-gradient(58% 52% at 50% 48%, rgba(12,9,7,.30), rgba(12,9,7,.78) 100%)}
+.gate-card{position:relative;width:100%;max-width:392px;background:#FFFDFA;border-radius:18px;
+  padding:46px 40px 34px;text-align:center;
+  box-shadow:0 40px 90px -30px rgba(0,0,0,.75), 0 2px 8px rgba(0,0,0,.25)}
+.gate-brand{display:flex;align-items:center;justify-content:center;gap:11px;
+  font-size:29px;font-weight:700;letter-spacing:-.03em;color:#241F1B}
+.gate-brand .mark{width:34px;height:34px;fill:none;stroke:#241F1B;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round}
+.gate-sub{margin:9px 0 0;font-size:13px;color:#8A8078;letter-spacing:.01em}
+.gate-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+  margin-top:30px;padding:13px 18px;border-radius:11px;border:1px solid #E2DCD4;
+  background:#fff;color:#241F1B;font-size:14.5px;font-weight:600;cursor:pointer;
+  transition:border-color .12s, box-shadow .12s}
+.gate-btn:hover{border-color:#C9BFB3;box-shadow:0 2px 10px rgba(36,31,27,.10)}
+.gate-btn:disabled{opacity:.55;cursor:default}
+.gate-btn .g-ico{width:18px;height:18px;flex:none}
+.gate-note{margin:20px 0 0;font-size:11.5px;line-height:1.75;color:#9A918A}
+.gate-alt{margin-top:14px;font-size:11.5px;color:#9A918A;text-decoration:underline;
+  background:none;border:none;cursor:pointer}
+.gate-alt:hover{color:#241F1B}
+.gate-err{color:#B3352C!important}
+body.locked{overflow:hidden}
+
+/* 헤더 브랜드에도 같은 심볼 */
+.brand .mark{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round;flex:none}
 body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.55;
   letter-spacing:-.003em;
   -webkit-font-smoothing:antialiased;padding-bottom:64px}
@@ -79,7 +113,7 @@ input,select{font:inherit;color:inherit}
 header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--surface) 88%,transparent);
   backdrop-filter:blur(10px);border-bottom:1px solid var(--line);}
 .top-in{max-width:1320px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
-.brand{display:flex;align-items:baseline;gap:9px;font-weight:700;letter-spacing:-.01em;font-size:16px}
+.brand{display:flex;align-items:center;gap:7px;font-weight:700;letter-spacing:-.01em;font-size:16px}
 .brand em{font-style:normal;font-weight:500;font-size:12px;color:var(--muted);letter-spacing:.06em}
 .tabs{display:flex;gap:2px;background:var(--surface-2);padding:3px;border-radius:8px}
 .tabs button{padding:5px 14px;border-radius:6px;font-size:13px;font-weight:500;color:var(--muted)}
@@ -486,9 +520,28 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
 </head>
 <body>
 
+<div class="gate" id="gate">
+  <div class="gate-bg" id="gate-bg"></div>
+  <div class="gate-card">
+    <div class="gate-brand"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 12.5 16 5l12 7.5" /><path d="M6.5 13.5V27h19V13.5" /><path d="M14.6 27V16.5h-8" /><path d="M17.4 27V16.5h8" /><path d="M16 18.5v6" /></svg><span>곳간</span></div>
+    <p class="gate-sub">두 사람이 함께 쓰는 가계부</p>
+    <button class="gate-btn" id="gate-login">
+      <svg viewBox="0 0 18 18" aria-hidden="true" class="g-ico">
+        <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
+        <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.34A9 9 0 0 0 9 18z"/>
+        <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.01-2.34z"/>
+        <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.01 2.34C4.68 5.16 6.66 3.58 9 3.58z"/>
+      </svg>
+      <span>구글 계정으로 로그인</span>
+    </button>
+    <p class="gate-note" id="gate-note">로그인해야 안의 내용이 보입니다.<br>기록은 두 사람만 볼 수 있습니다.</p>
+    <button class="gate-alt" id="gate-alt" hidden>로그인 없이 이 브라우저에서만 쓰기</button>
+  </div>
+</div>
+
 <header class="top">
   <div class="top-in">
-    <div class="brand">가계부 <em>두 사람의 월별 장부</em></div>
+    <div class="brand"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 12.5 16 5l12 7.5" /><path d="M6.5 13.5V27h19V13.5" /><path d="M14.6 27V16.5h-8" /><path d="M17.4 27V16.5h8" /><path d="M16 18.5v6" /></svg> 곳간 <em>두 사람의 월별 장부</em></div>
     <nav class="tabs" role="tablist">
       <button role="tab" id="tab-month" aria-selected="true">월별 가계부</button>
       <button role="tab" id="tab-assets" aria-selected="false">총자산</button>
@@ -2239,6 +2292,51 @@ function seedStore(){                       // 처음 열었을 때 넣어 줄 �
   return st;
 }
 
+/* ---------- 로그인 게이트 ----------
+   로그인하기 전에는 안의 내용을 아예 그리지 않는다. */
+let LOCAL_ONLY=false;
+function lockGate(msg, showAlt){
+  document.body.classList.add('locked');
+  $('#gate').hidden=false;
+  const n=$('#gate-note');
+  if(msg){ n.innerHTML=msg; n.classList.add('gate-err'); }
+  $('#gate-alt').hidden=!showAlt;
+}
+function openGate(){
+  $('#gate').hidden=true;
+  document.body.classList.remove('locked');
+}
+$('#gate-login').addEventListener('click', async ()=>{
+  const b=$('#gate-login'); b.disabled=true;
+  const n=$('#gate-note');
+  n.classList.remove('gate-err');
+  n.innerHTML='로그인 창을 여는 중입니다…';
+  try{
+    await fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+  }catch(e){
+    const code=(e&&e.code)||'';
+    let msg='로그인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.';
+    if(code==='auth/popup-closed-by-user' || code==='auth/cancelled-popup-request')
+      msg='로그인해야 안의 내용이 보입니다.<br>기록은 두 사람만 볼 수 있습니다.';
+    else if(code==='auth/operation-not-allowed')
+      msg='구글 로그인이 아직 켜져 있지 않습니다.<br>Firebase 콘솔에서 사용 설정해 주세요.';
+    else if(code==='auth/unauthorized-domain')
+      msg='이 주소가 승인되지 않았습니다.<br>Firebase 승인된 도메인에 추가해 주세요.';
+    else if(code==='auth/popup-blocked')
+      msg='브라우저가 팝업을 막았습니다.<br>팝업을 허용하고 다시 눌러 주세요.';
+    n.innerHTML=msg;
+    if(code!=='auth/popup-closed-by-user' && code!=='auth/cancelled-popup-request')
+      n.classList.add('gate-err');
+  }
+  b.disabled=false;
+});
+$('#gate-alt').addEventListener('click', async ()=>{
+  LOCAL_ONLY=true; openGate();
+  await startWith(localDB(), '이 브라우저에만 저장됨');
+  showDemoNotice();
+  showToast('로그인 없이 이 브라우저에서만 씁니다. 다른 기기와 공유되지 않습니다.');
+});
+
 /* ---------- 계정 ---------- */
 function paintAccount(){
   const b=$('#btn-account');
@@ -2345,11 +2443,15 @@ async function offerUpload(localStore){
 (async function(){
   paintAccount();
   const local=localDB();
+  lockGate();
+  (function(){                      // 배경 사진은 있으면 쓰고 없으면 단색으로 둔다
+    const im=new Image();
+    im.onload=()=>{ $('#gate-bg').style.backgroundImage="url('assets/gotgan-login-bg.jpg')"; };
+    im.src='assets/gotgan-login-bg.jpg';
+  })();
 
   if(!CLOUD_ON){
-    await startWith(local, lsOK? '이 브라우저에 저장됨' : '저장 안 됨');
-    if(!lsOK) notice('이 브라우저에 저장할 수 없는 상태입니다. 작업 후 "파일로 저장"으로 백업해 주세요.');
-    showDemoNotice();
+    lockGate('로그인 기능이 아직 설정되지 않았습니다.<br>이 브라우저에서만 쓰실 수 있습니다.', true);
     return;
   }
 
@@ -2359,8 +2461,10 @@ async function offerUpload(localStore){
 
   let started=false;
   fbAuth.onAuthStateChanged(async user=>{
+    if(LOCAL_ONLY) return;
     USER=user||null; paintAccount();
     if(user){
+      openGate();
       setStatus('saving','가계부 여는 중');
       try{
         HID=await ensureHousehold(user);
@@ -2372,16 +2476,16 @@ async function offerUpload(localStore){
         notice('');
       }catch(e){
         setStatus('off','서버 연결 실패');
-        notice('서버에 연결하지 못했습니다 — '+(e && e.message || e)+' · 브라우저 저장으로 계속합니다.');
-        await startWith(local, '이 브라우저에 저장됨');
+        lockGate('가계부를 여는 중 문제가 생겼습니다.<br>'+(e && e.message || e), true);
       }
     }else{
-      await startWith(local, lsOK? '이 브라우저에 저장됨' : '저장 안 됨');
-      showDemoNotice();
       started=true;
+      lockGate();            // 로그아웃 상태 — 안의 내용을 그리지 않는다
     }
   });
-  setTimeout(()=>{ if(!started) startWith(local,'이 브라우저에 저장됨'); }, 6000);
+  setTimeout(()=>{
+    if(!started) lockGate('서버에 연결하지 못했습니다.<br>잠시 뒤 새로고침해 주세요.', true);
+  }, 8000);
 })();
 })();
 </script>
