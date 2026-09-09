@@ -509,6 +509,7 @@ tr:hover .iconbtn{opacity:1}
 tr[data-own="0"] td:first-child{box-shadow:inset 3px 0 0 var(--pA)}
 tr[data-own="1"] td:first-child{box-shadow:inset 3px 0 0 var(--pB)}
 tr[data-own="2"] td:first-child{box-shadow:inset 3px 0 0 var(--bar)}
+tr[data-own="3"] td:first-child{box-shadow:inset 3px 0 0 var(--bibik)}
 .group-block{margin-bottom:26px}
 .gb-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 2px 9px}
 .gb-head h3{font-size:14px;letter-spacing:-.01em;color:var(--ink);font-weight:700}
@@ -1856,6 +1857,19 @@ const SORTS = [['owner','관리자순'],['type','구분순'],['bank','기관순'
                ['','입력 순서'],['amount','금액 많은 순'],['maturity','만기 임박순']];
 
 function allRows(){ return (ASSETS && ASSETS.rows) || []; }
+/* 관리자 순번은 미리 정한 이름 목록이 아니라 실제 데이터에서 뽑는다.
+   그래야 이름을 무엇으로 바꿔도 정렬과 색이 따라온다. */
+function ownerList(){
+  const seen=[];
+  allRows().forEach(r=>{ const o=(r.owner||'').trim(); if(o && seen.indexOf(o)<0) seen.push(o); });
+  OWNERS.forEach(o=>{ if(seen.indexOf(o)<0) seen.push(o); });   // 아직 안 쓴 이름도 고를 수 있게
+  return seen;
+}
+function ownerIndex(name){
+  const i=ownerList().indexOf((name||'').trim());
+  return i<0 ? 0 : i;
+}
+const OWNER_COLORS=['var(--pA)','var(--pB)','var(--bar)','var(--bibik)'];
 function filterActive(g){ const F=FILTERS[g]; return !!(F.owner||F.type||F.bank); }
 function visibleRows(g){
   const F=FILTERS[g];
@@ -1867,7 +1881,7 @@ function visibleRows(g){
   const day = r=>{ const m=String(r.maturity||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
                    return m? new Date(+m[1],+m[2]-1,+m[3]).getTime() : Infinity; };
   const cmp = {
-    owner:(a,b)=> (OWNERS.indexOf(a.owner)-OWNERS.indexOf(b.owner)) || amt(b)-amt(a),
+    owner:(a,b)=> (ownerIndex(a.owner)-ownerIndex(b.owner)) || amt(b)-amt(a),
     type: (a,b)=> (ATYPES.indexOf(a.type)-ATYPES.indexOf(b.type)) || amt(b)-amt(a),
     bank: (a,b)=> String(a.bank||'').localeCompare(String(b.bank||''),'ko') || amt(b)-amt(a),
     amount:(a,b)=> amt(b)-amt(a),
@@ -1930,11 +1944,11 @@ function assetCell(row, kind){
   const td=el('td');
   if(kind==='owner'){
     const sel=el('select','f');
-    OWNERS.concat(row.owner && OWNERS.indexOf(row.owner)<0?[row.owner]:[]).forEach(o=>{
+    ownerList().forEach(o=>{
       const op=el('option',null,o); op.value=o; if(o===row.owner)op.selected=true; sel.appendChild(op); });
     sel.addEventListener('change',()=>{row.owner=sel.value; renderAssets(); save('assets');});
     const pill=el('span','owner-pill'), dot=el('i');
-    dot.style.background = row.owner===OWNERS[1]?'var(--pB)': row.owner===OWNERS[2]?'var(--bar)':'var(--pA)';
+    dot.style.background = OWNER_COLORS[ownerIndex(row.owner) % OWNER_COLORS.length];
     pill.appendChild(dot); pill.appendChild(sel); td.appendChild(pill);
   }
   else if(kind==='type' || kind==='bank'){
@@ -1999,7 +2013,7 @@ function assetTable(g, list){
 
   const tb=el('tbody');
   list.forEach(row=>{
-    const tr=el('tr'); tr.dataset.own=String(Math.max(0, OWNERS.indexOf(row.owner)));
+    const tr=el('tr'); tr.dataset.own=String(ownerIndex(row.owner) % 4);
     cols.forEach(([,kind])=> tr.appendChild(assetCell(row,kind)));
     const last=el('td','acts');
     const other=GROUPS.find(x=>x.key!==g);
