@@ -91,6 +91,20 @@ header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--s
 .mini[hidden]+.io{margin-left:auto}
 .io{display:flex;gap:6px;margin-left:14px}
 .io .icon{padding:5px 9px;font-size:13px;line-height:1.2}
+#btn-account{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#btn-account.on{border-color:var(--accent);color:var(--accent);font-weight:600}
+.acct-row{display:flex;align-items:baseline;gap:9px;font-size:13px;padding:7px 0;
+  border-bottom:1px solid var(--line-soft)}
+.acct-row:last-of-type{border-bottom:none}
+.acct-row .k{font-size:11px;letter-spacing:.06em;color:var(--muted);min-width:64px}
+.acct-row .v{color:var(--ink);word-break:break-all}
+.code-box{display:flex;align-items:center;gap:8px;margin-top:6px}
+.code{font-family:var(--mono);font-size:19px;font-weight:700;letter-spacing:.14em;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 13px}
+.acct-note{font-size:11.5px;color:var(--faint);line-height:1.6;margin-top:10px}
+.acct-in{width:100%;box-sizing:border-box;margin-top:7px;padding:9px 11px;border-radius:8px;
+  border:1px solid var(--line);background:var(--surface-2);color:var(--ink);
+  font-family:var(--mono);font-size:15px;letter-spacing:.1em;text-transform:uppercase}
 .io .icon:disabled{opacity:.32;cursor:default;border-color:var(--line);color:var(--ink-2)}
 .io .icon:disabled:hover{border-color:var(--line);color:var(--ink-2)}
 .io .ghost{padding:5px 11px;font-size:12px;display:inline-flex;align-items:center;cursor:pointer}
@@ -465,6 +479,10 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
 .skel{color:var(--faint)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
 </head>
 <body>
 
@@ -477,6 +495,7 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
     </nav>
     <span class="mini" id="mini" hidden></span>
     <div class="io">
+      <button class="ghost" id="btn-account" title="계정">로그인</button>
       <button class="ghost icon" id="btn-undo" title="실행취소 (Ctrl+Z)" disabled>↶</button>
       <button class="ghost icon" id="btn-redo" title="다시 실행 (Ctrl+Shift+Z)" disabled>↷</button>
       <button class="ghost icon" id="btn-theme" title="테마">◐</button>
@@ -552,11 +571,7 @@ let lsOK=true;
 function localDB(){
   let store=null;
   try{ store = JSON.parse(localStorage.getItem(LS_KEY)); }catch(e){ store=null; }
-  if(!store || typeof store!=='object' || !Object.keys(store).length){
-    store={};
-    Object.keys(SEED.months||{}).forEach(k=> store['months/'+k]=SEED.months[k]);
-    if(SEED.assets) store['assets/main']=SEED.assets;
-  }
+  if(!store || typeof store!=='object' || !Object.keys(store).length) store=seedStore();
   const subs={};
   const persist=()=>{ try{ localStorage.setItem(LS_KEY, JSON.stringify(store)); lsOK=true; return true; }
                       catch(e){ lsOK=false; return false; } };
@@ -585,16 +600,17 @@ function localDB(){
 
 function exportName(){ const d=new Date();
   return '가계부-'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'.json'; }
-function exportData(){
+async function exportData(){
   const out={version:1, exportedAt:new Date().toISOString(), months:{}, assets:null};
-  Object.keys(DB._store).forEach(k=>{
-    if(k.indexOf('months/')===0) out.months[k.slice(7)]=DB._store[k];
-    else if(k==='assets/main') out.assets=DB._store[k];
+  const store = DB && DB.dump ? await DB.dump() : (DB && DB._store) || {};
+  Object.keys(store).forEach(k=>{
+    if(k.indexOf('months/')===0) out.months[k.slice(7)]=store[k];
+    else if(k==='assets/main') out.assets=store[k];
   });
   return JSON.stringify(out,null,1);
 }
 async function saveToFile(){
-  const text=exportData(), name=exportName();
+  const text=await exportData(), name=exportName();
   if(window.showSaveFilePicker){
     try{
       const h=await window.showSaveFilePicker({suggestedName:name,
@@ -617,14 +633,107 @@ function loadFromFile(file){
     try{ d=JSON.parse(fr.result); }catch(e){ notice('JSON 형식이 아닙니다. 내보내기로 만든 파일을 골라주세요.'); return; }
     if(!d || typeof d!=='object' || !d.months || !Object.keys(d.months).length){
       notice('가계부 데이터가 아닙니다. months 항목이 없습니다.'); return; }
-    const st=DB._store;
-    Object.keys(st).forEach(k=>delete st[k]);
-    Object.keys(d.months).forEach(k=> st['months/'+k]=d.months[k]);
-    st['assets/main'] = d.assets || {rows:[]};
-    if(!DB._persist()){ notice('불러왔지만 브라우저에 저장하지 못했습니다.'); }
-    location.reload();
+    (async ()=>{
+      try{
+        if(DB && DB._store){
+          const st=DB._store;
+          Object.keys(st).forEach(k=>delete st[k]);
+          Object.keys(d.months).forEach(k=> st['months/'+k]=d.months[k]);
+          st['assets/main'] = d.assets || {rows:[]};
+          if(!DB._persist()){ notice('불러왔지만 브라우저에 저장하지 못했습니다.'); return; }
+        }else{
+          for(const k of Object.keys(d.months)) await DB.doc('months/'+k).set(d.months[k]);
+          await DB.doc('assets/main').set(d.assets || {rows:[]});
+        }
+        location.reload();
+      }catch(e){ notice('불러오지 못했습니다 — '+(e && e.message || e)); }
+    })();
   };
   fr.readAsText(file);
+}
+
+/* ===== 로그인 · 서버 저장 =====
+   설정이 없으면(FIREBASE_CONFIG === null) 지금까지처럼 브라우저에만 저장한다. */
+const CLOUD_ON = !!(window.FIREBASE_CONFIG && window.firebase);
+let fbAuth=null, fbStore=null, USER=null, HID=null, HOUSE=null;
+
+function cloudDB(hid){
+  const root='households/'+hid+'/';
+  const clean=o=>JSON.parse(JSON.stringify(o));   // undefined 가 섞이면 Firestore 가 거부한다
+  return {
+    kind:'cloud',
+    doc(path){
+      const ref=fbStore.doc(root+path);
+      return { path, id:ref.id,
+        get(){ return ref.get(); },
+        set(d){ return ref.set(clean(d)); },
+        delete(){ return ref.delete(); },
+        onSnapshot(next,err){ return ref.onSnapshot(next,err); } };
+    },
+    collection(pth){
+      const ref=fbStore.collection(root+pth);
+      return { get(){ return ref.get(); } };
+    },
+    async dump(){
+      const out={};
+      const ms=await fbStore.collection(root+'months').get();
+      ms.docs.forEach(d=> out['months/'+d.id]=d.data());
+      const a=await fbStore.doc(root+'assets/main').get();
+      if(a.exists) out['assets/main']=a.data();
+      return out;
+    }
+  };
+}
+
+function newCode(){
+  const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // 헷갈리는 글자 제외
+  let c=''; for(let i=0;i<6;i++) c+=A[Math.floor(Math.random()*A.length)];
+  return c;
+}
+async function ensureHousehold(user){
+  const uref=fbStore.doc('users/'+user.uid);
+  const me=await uref.get();
+  let hid = me.exists ? me.data().household : null;
+  if(hid){
+    const h=await fbStore.doc('households/'+hid).get();
+    if(h.exists && (h.data().members||[]).indexOf(user.uid)>=0){ HOUSE=h.data(); return hid; }
+    hid=null;
+  }
+  const ref=fbStore.collection('households').doc();
+  await ref.set({name:'우리 가계부', members:[user.uid]});
+  await uref.set({household:ref.id, email:user.email||'', name:user.displayName||''}, {merge:true});
+  HOUSE={name:'우리 가계부', members:[user.uid]};
+  return ref.id;
+}
+async function inviteCode(){
+  if(!HID) return null;
+  const q=await fbStore.doc('households/'+HID).get();
+  const cur=(q.data()||{}).invite;
+  if(cur){
+    const iv=await fbStore.doc('invites/'+cur).get();
+    if(iv.exists) return cur;
+  }
+  const code=newCode();
+  await fbStore.doc('invites/'+code).set({hid:HID});
+  await fbStore.doc('households/'+HID).update({invite:code});
+  return code;
+}
+async function joinByCode(code){
+  code=String(code||'').trim().toUpperCase();
+  if(code.length!==6) throw new Error('코드는 6글자입니다.');
+  const iv=await fbStore.doc('invites/'+code).get();
+  if(!iv.exists) throw new Error('그런 코드가 없습니다. 다시 확인해 주세요.');
+  const hid=iv.data().hid;
+  const href=fbStore.doc('households/'+hid);
+  const h=await href.get();
+  if(!h.exists) throw new Error('초대한 가계부를 찾을 수 없습니다.');
+  const members=(h.data().members||[]);
+  if(members.indexOf(USER.uid)<0){
+    await href.update({members: members.concat([USER.uid])});
+  }
+  await fbStore.doc('users/'+USER.uid).set(
+    {household:hid, email:USER.email||'', name:USER.displayName||''}, {merge:true});
+  return hid;
 }
 
 let DB=null, MONTH=null, MKEY=null, MONTHS=[], ASSETS=null, PEND={};
@@ -2033,8 +2142,10 @@ document.addEventListener('focusout',()=>{
 $('#toast-undo').addEventListener('click',()=>{
   const f=undoFn; undoFn=null; clearTimeout(toastT); $('#toast').hidden=true; if(f) f();
 });
+$('#btn-export').addEventListener('click',saveToFile);
+$('#file-import').addEventListener('change',e=>{ const f=e.target.files[0]; if(f) loadFromFile(f); e.target.value=''; });
 
-/* 테마 — 시스템 / 밝게 / 어둡게 를 돌아가며 고른다 */
+/* 테마 — 시스템 / 밝게 / 어둡게 */
 const THEMES=['auto','light','dark'];
 const THEME_LABEL={auto:'시스템 설정',light:'밝게',dark:'어둡게'};
 let theme='auto';
@@ -2046,12 +2157,10 @@ function applyTheme(){
   b.textContent = theme==='auto'?'◐': theme==='light'?'☀':'☾';
   b.title='테마: '+THEME_LABEL[theme]+' (눌러서 전환)';
 }
-$('#btn-undo').addEventListener('click', doUndo);
-$('#btn-redo').addEventListener('click', doRedo);
 $('#btn-theme').addEventListener('click',()=>{
   theme = THEMES[(THEMES.indexOf(theme)+1) % THEMES.length];
   try{ localStorage.setItem('gagebu.theme', theme); }catch(e){}
-  applyTheme(); renderAssets();          // 차트 색은 CSS 변수를 읽어 쓴다
+  applyTheme(); renderAssets();
   showToast('테마: '+THEME_LABEL[theme]);
 });
 applyTheme();
@@ -2082,44 +2191,193 @@ document.addEventListener('keydown',e=>{
   if(e.key==='ArrowRight'){ e.preventDefault(); if(!$('#next').disabled) $('#next').click(); }
 });
 
-/* 처음 열었을 때 예시 데이터라는 걸 분명히 알린다 */
+/* 처음 열었을 때 예시 데이터라는 걸 알린다 */
 function showDemoNotice(){
   if(!MONTH || !MONTH.demo) return;
   notice('예시로 채워 둔 빈 장부입니다. 값을 고쳐 바로 쓰시거나, 오른쪽 위 ‘불러오기’로 내려받아 둔 파일을 넣으세요. '
-       + '입력한 내용은 이 브라우저에만 저장되고 어디로도 전송되지 않습니다.');
+       + '입력한 내용은 로그인 전에는 이 브라우저에만 저장됩니다.');
 }
 document.addEventListener('input', function once(){
   if(MONTH && MONTH.demo){ delete MONTH.demo; notice(''); save('month'); }
   document.removeEventListener('input', once);
 }, true);
 
-/* ---------- boot ---------- */
-renderSummary(); renderLedger(); renderAssets();
-
-$('#btn-export').addEventListener('click',saveToFile);
-$('#file-import').addEventListener('change',e=>{ const f=e.target.files[0]; if(f) loadFromFile(f); e.target.value=''; });
-
-(async function(){
-  DB = localDB();
-  if(!lsOK) notice('이 브라우저에 저장할 수 없는 상태입니다. 고친 내용이 새로고침하면 사라지니, 작업 후 "파일로 저장"을 눌러 백업해주세요.');
+/* ---------- 저장소를 붙였다 뗐다 할 수 있게 ---------- */
+async function startWith(db, label){
+  if(unsubM){ unsubM(); unsubM=null; }
+  if(unsubA){ unsubA(); unsubA=null; }
+  DB=db; assetsLoaded=false; MONTH=null; ASSETS=null;
+  undoStack=[]; redoStack=[]; committed=null; paintUndo();
   try{
-    const snap = await DB.collection('months').get();
-    MONTHS = snap.docs.map(d=>d.id).sort();
+    const snap=await DB.collection('months').get();
+    MONTHS=snap.docs.map(d=>d.id).sort();
   }catch(e){ MONTHS=[]; }
-  if(!MONTHS.length){ MONTHS=[new Date().toISOString().slice(0,7)]; }
+  if(!MONTHS.length) MONTHS=[new Date().toISOString().slice(0,7)];
   openMonth(MONTHS[MONTHS.length-1]);
   unsubA = DB.doc('assets/main').onSnapshot(snap=>{
     const d = snap.exists ? snap.data() : {rows:[]};
-    if(snap.metadata.hasPendingWrites || savePending) return;
+    if(snap.metadata && snap.metadata.hasPendingWrites) return;
+    if(savePending) return;
     if(JSON.stringify(d)===JSON.stringify(ASSETS)) return;
-    if(isEditing()){ PEND.assets=d; return; }
     ASSETS=clone(d);
-    if(migrateAssets(ASSETS)) save('assets');   // 묶음·원금 칸 채우기
+    if(migrateAssets(ASSETS)) save('assets');
     renderAssets();
-    if(!assetsLoaded){ assetsLoaded=true; if(MONTH) renderLedger(); } // 계좌 목록이 와야 연결 셀렉트가 채워진다
-  }, e=>setStatus('off','읽기 실패 ('+e.code+')'));
-  setStatus('saved', lsOK? '이 브라우저에 저장됨' : '저장 안 됨');
-  setTimeout(()=>{ committed=stateNow(); paintUndo(); }, 60);   // 이 상태가 되돌리기의 출발점
+    if(!assetsLoaded){ assetsLoaded=true; if(MONTH) renderLedger(); }
+  }, e=>setStatus('off','읽기 실패 ('+(e&&e.code||'')+')'));
+  setStatus('saved', label);
+  setTimeout(()=>{ committed=stateNow(); paintUndo(); }, 60);
+}
+
+function seedStore(){                       // 처음 열었을 때 넣어 줄 예시 장부
+  const st={};
+  Object.keys(SEED.months||{}).forEach(k=> st['months/'+k]=SEED.months[k]);
+  if(SEED.assets) st['assets/main']=SEED.assets;
+  return st;
+}
+
+/* ---------- 계정 ---------- */
+function paintAccount(){
+  const b=$('#btn-account');
+  if(!CLOUD_ON){ b.hidden=true; return; }
+  b.hidden=false;
+  if(USER){
+    b.textContent = USER.displayName || USER.email || '계정';
+    b.classList.add('on');
+    b.title='계정 · 함께 쓰기 · 로그아웃';
+  }else{
+    b.textContent='로그인'; b.classList.remove('on');
+    b.title='구글 계정으로 로그인하면 두 사람이 여러 기기에서 같이 볼 수 있습니다';
+  }
+}
+async function doLogin(){
+  try{
+    const prov=new firebase.auth.GoogleAuthProvider();
+    await fbAuth.signInWithPopup(prov);
+  }catch(e){
+    if(e && e.code==='auth/popup-closed-by-user') return;
+    notice('로그인하지 못했습니다 — '+(e && e.message || e));
+  }
+}
+async function accountDialog(){
+  const back=el('div','modal-back'), box=el('div','modal');
+  box.appendChild(el('h3','modal-ttl','계정'));
+  const info=el('div');
+  const row=(k,v)=>{ const r=el('div','acct-row');
+    r.appendChild(el('span','k',k)); r.appendChild(el('span','v',v)); info.appendChild(r); };
+  row('로그인', USER.email || USER.displayName || '');
+  row('가계부', (HOUSE&&HOUSE.name) || '우리 가계부');
+  row('함께 쓰는 사람', ((HOUSE&&HOUSE.members)||[]).length + '명');
+  box.appendChild(info);
+
+  const cRow=el('div','acct-row'); cRow.appendChild(el('span','k','초대 코드'));
+  box.appendChild(cRow);
+  const codeBox=el('div','code-box');
+  const codeEl=el('span','code','불러오는 중');
+  codeBox.appendChild(codeEl);
+  const copy=el('button','ghost','복사');
+  copy.addEventListener('click',()=>{
+    const t=codeEl.textContent;
+    if(navigator.clipboard) navigator.clipboard.writeText(t).then(()=>showToast('초대 코드를 복사했습니다.'));
+  });
+  codeBox.appendChild(copy);
+  box.appendChild(codeBox);
+  box.appendChild(el('div','acct-note',
+    '배우자분이 같은 주소에서 구글 로그인한 뒤 이 코드를 넣으면 같은 가계부를 함께 씁니다.'));
+
+  const join=el('input','acct-in'); join.placeholder='받은 코드 넣기'; join.maxLength=6;
+  box.appendChild(join);
+  const err=el('div','acct-note'); err.style.color='var(--neg)'; box.appendChild(err);
+
+  const foot=el('div','modal-foot');
+  const out=el('button','ghost','로그아웃');
+  const joinBtn=el('button','btn-primary','코드로 참여');
+  const close=el('button','ghost','닫기');
+  foot.appendChild(out); foot.appendChild(joinBtn); foot.appendChild(close);
+  box.appendChild(foot); back.appendChild(box); document.body.appendChild(back);
+
+  const shut=()=>{ back.remove(); document.removeEventListener('keydown',key,true); };
+  const key=e=>{ if(e.key==='Escape'){ e.preventDefault(); shut(); } };
+  document.addEventListener('keydown',key,true);
+  back.addEventListener('mousedown',e=>{ if(e.target===back) shut(); });
+  close.addEventListener('click',shut);
+  out.addEventListener('click',async()=>{ shut(); await fbAuth.signOut(); });
+  joinBtn.addEventListener('click',async()=>{
+    err.textContent='';
+    try{
+      const hid=await joinByCode(join.value);
+      shut();
+      HID=hid;
+      const h=await fbStore.doc('households/'+hid).get(); HOUSE=h.data();
+      await startWith(cloudDB(hid), '함께 쓰는 가계부');
+      showToast('같은 가계부에 참여했습니다.');
+    }catch(e){ err.textContent = e && e.message || String(e); }
+  });
+
+  try{ codeEl.textContent = await inviteCode(); }
+  catch(e){ codeEl.textContent='만들지 못함'; }
+}
+$('#btn-account').addEventListener('click',()=>{ USER ? accountDialog() : doLogin(); });
+
+/* 로그인 직후, 브라우저에만 있던 내용을 서버로 올릴지 물어본다 */
+async function offerUpload(localStore){
+  const months=Object.keys(localStore).filter(k=>k.indexOf('months/')===0);
+  const real=months.some(k=>{
+    const m=localStore[k];
+    return m && !m.demo;
+  });
+  if(!real) return false;
+  const ok=await confirmDialog({
+    title:'이 브라우저에 있던 가계부를 서버로 옮길까요?',
+    body:'옮기면 다른 기기에서도 같은 내용을 보게 됩니다.',
+    list:[months.length+'개 달의 기록', '자산 목록', '옮긴 뒤에도 이 브라우저 사본은 그대로 남습니다'],
+    ok:'서버로 옮기기'});
+  if(!ok) return false;
+  for(const k of months) await DB.doc(k).set(localStore[k]);
+  if(localStore['assets/main']) await DB.doc('assets/main').set(localStore['assets/main']);
+  return true;
+}
+
+/* ---------- boot ---------- */
+(async function(){
+  paintAccount();
+  const local=localDB();
+
+  if(!CLOUD_ON){
+    await startWith(local, lsOK? '이 브라우저에 저장됨' : '저장 안 됨');
+    if(!lsOK) notice('이 브라우저에 저장할 수 없는 상태입니다. 작업 후 "파일로 저장"으로 백업해 주세요.');
+    showDemoNotice();
+    return;
+  }
+
+  firebase.initializeApp(window.FIREBASE_CONFIG);
+  fbAuth=firebase.auth(); fbStore=firebase.firestore();
+  try{ await fbStore.enablePersistence({synchronizeTabs:true}); }catch(e){}
+
+  let started=false;
+  fbAuth.onAuthStateChanged(async user=>{
+    USER=user||null; paintAccount();
+    if(user){
+      setStatus('saving','가계부 여는 중');
+      try{
+        HID=await ensureHousehold(user);
+        const h=await fbStore.doc('households/'+HID).get(); HOUSE=h.data();
+        await startWith(cloudDB(HID), '서버에 저장됨');
+        started=true;
+        const empty=!MONTHS.length || (MONTH && MONTH.demo);
+        if(empty || !MONTH) await offerUpload(local._store);
+        notice('');
+      }catch(e){
+        setStatus('off','서버 연결 실패');
+        notice('서버에 연결하지 못했습니다 — '+(e && e.message || e)+' · 브라우저 저장으로 계속합니다.');
+        await startWith(local, '이 브라우저에 저장됨');
+      }
+    }else{
+      await startWith(local, lsOK? '이 브라우저에 저장됨' : '저장 안 됨');
+      showDemoNotice();
+      started=true;
+    }
+  });
+  setTimeout(()=>{ if(!started) startWith(local,'이 브라우저에 저장됨'); }, 6000);
 })();
 })();
 </script>

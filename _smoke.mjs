@@ -120,4 +120,7 @@ setTimeout(() => {
   console.log('실행취소 버튼      :', undoBtn ? '있음' : '없음');
   console.log('식생품 패널        :', doc.querySelector('#grocery') ? '있음' : '없음');
   console.log('드래그 손잡이      :', doc.querySelector('#ledger').querySelectorAll('.grip').length + '개');
+  const acct = doc.querySelector('#btn-account');
+  console.log('계정 버튼          :', acct ? (acct.hidden ? '숨김(설정 없음 — 정상)' : '보임') : '없음');
+  console.log('테마 버튼          :', doc.querySelector('#btn-theme').textContent || '(빈값)');
 }, 400);
