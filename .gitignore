@@ -1,0 +1,6 @@
+# 개인 가계부 데이터 — 절대 올리지 않는다
+data/
+*.local.*
+_o.txt
+_tmp*
+node_modules/
