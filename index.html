@@ -2548,7 +2548,8 @@ async function accountDialog(){
   });
   box.appendChild(leave);
   box.appendChild(el('div','acct-note',
-    '이 주소에는 이름과 급여가 담겨 있어 공개 코드에 넣지 않습니다. 두 사람만 볼 수 있습니다.'));
+    '계산기에서도 같은 계정으로 로그인하면 값이 저절로 맞춰지므로 여기는 비워 두어도 됩니다. '
+    + '특정 시점의 계획을 고정해 두고 싶을 때만 주소를 넣으세요.'));
   const err=el('div','acct-note'); err.style.color='var(--neg)'; box.appendChild(err);
 
   const foot=el('div','modal-foot');
