@@ -3,6 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="두 사람이 함께 쓰는 월별 가계부. 수입·저축·고정비·용돈과 총자산을 한 화면에서.">
+<meta name="theme-color" content="#171310">
+<meta property="og:title" content="곳간 — 두 사람 가계부">
+<meta property="og:description" content="두 사람이 함께 쓰는 월별 가계부.">
+<meta property="og:image" content="https://soverdoes.github.io/gagebu/assets/gotgan-login-bg.jpg">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/app-icon.png">
 <title>곳간 — 두 사람 가계부</title>
 <style>
 /* 독립 실행용 기본값 (아티팩트 래퍼가 주던 것) */
@@ -523,7 +530,7 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
 <div class="gate" id="gate">
   <div class="gate-bg" id="gate-bg"></div>
   <div class="gate-card">
-    <div class="gate-brand"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 12.5 16 5l12 7.5" /><path d="M6.5 13.5V27h19V13.5" /><path d="M14.6 27V16.5h-8" /><path d="M17.4 27V16.5h8" /><path d="M16 18.5v6" /></svg><span>곳간</span></div>
+    <div class="gate-brand"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M6.8 5.6 14.4 8.2v15.6L6.8 26.4z" /><path d="M25.2 5.6 17.6 8.2v15.6l7.6 2.6z" /><path d="M10.6 6.9v18.2" /><path d="M21.4 6.9v18.2" /></svg><span>곳간</span></div>
     <p class="gate-sub">두 사람이 함께 쓰는 가계부</p>
     <button class="gate-btn" id="gate-login">
       <svg viewBox="0 0 18 18" aria-hidden="true" class="g-ico">
@@ -541,7 +548,7 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
 
 <header class="top">
   <div class="top-in">
-    <div class="brand"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 12.5 16 5l12 7.5" /><path d="M6.5 13.5V27h19V13.5" /><path d="M14.6 27V16.5h-8" /><path d="M17.4 27V16.5h8" /><path d="M16 18.5v6" /></svg> 곳간 <em>두 사람의 월별 장부</em></div>
+    <div class="brand"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M6.8 5.6 14.4 8.2v15.6L6.8 26.4z" /><path d="M25.2 5.6 17.6 8.2v15.6l7.6 2.6z" /><path d="M10.6 6.9v18.2" /><path d="M21.4 6.9v18.2" /></svg> 곳간 <em>두 사람의 월별 장부</em></div>
     <nav class="tabs" role="tablist">
       <button role="tab" id="tab-month" aria-selected="true">월별 가계부</button>
       <button role="tab" id="tab-assets" aria-selected="false">총자산</button>
