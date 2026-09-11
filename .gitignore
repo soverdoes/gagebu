@@ -10,3 +10,10 @@ assets/gotgan-login-bg.png
 _prev-*
 _bi-spec.md
 _codex-result.txt
+
+# 모바일 확인용 임시 파일
+_preview-*.html
+_frame-*.html
+_diag.html
+_tall.png
+_shot-*.png
