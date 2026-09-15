@@ -1023,6 +1023,17 @@ let unsubM=null, unsubA=null, assetsLoaded=false;
 function setStatus(s,t){ const n=$('#status'); n.dataset.s=s; $('#status-t').textContent=t; }
 function notice(msg){ const n=$('#notice'); if(!msg){n.hidden=true;return;} n.textContent=msg; n.hidden=false; }
 
+/* 오늘이 속한 달. toISOString 은 UTC 라 매달 1일 새벽에 지난달이 나온다. */
+function thisMonthKey(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+/* 열어 줄 달을 고른다 — 오늘 달이 있으면 그것, 없으면 가장 최근 달 */
+function pickMonth(){
+  const now=thisMonthKey();
+  if(MONTHS.indexOf(now)>=0) return now;
+  return MONTHS[MONTHS.length-1];
+}
 function emptyMonth(key){
   return { month:key, people: PEOPLE_DEFAULT.map(name=>({
       name, income:[{id:uid(),label:name,amount:0}],
@@ -2594,9 +2605,14 @@ async function startWith(db, label){
     const snap=await DB.collection('months').get();
     MONTHS=snap.docs.map(d=>d.id).sort();
   }catch(e){ MONTHS=[]; }
-  if(!MONTHS.length) MONTHS=[new Date().toISOString().slice(0,7)];
-  await openMonth(MONTHS[MONTHS.length-1]);
+  if(!MONTHS.length) MONTHS=[thisMonthKey()];
+  await openMonth(pickMonth());
   loadSettings();
+  // 오늘 달 장부가 아직 없으면 알려 준다
+  const now=thisMonthKey();
+  if(MONTHS.indexOf(now)<0 && MKEY && MKEY<now){
+    showToast(now.slice(0,4)+'.'+now.slice(5)+' 장부가 아직 없습니다 · ‘다음 달 만들기’로 이어서 쓰세요');
+  }
   unsubA = DB.doc('assets/main').onSnapshot(snap=>{
     const d = snap.exists ? snap.data() : {rows:[]};
     if(snap.metadata && snap.metadata.hasPendingWrites) return;
@@ -2886,7 +2902,7 @@ async function offerUpload(localStore){
   for(const k of months) await DB.doc(k).set(localStore[k]);
   if(localStore['assets/main']) await DB.doc('assets/main').set(localStore['assets/main']);
   MONTHS=months.map(k=>k.slice(7)).sort();
-  await openMonth(MONTHS[MONTHS.length-1]);
+  await openMonth(pickMonth());
   showToast('서버로 옮겼습니다. 이제 다른 기기에서도 같은 내용이 보입니다.');
   return true;
 }
