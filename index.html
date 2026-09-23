@@ -348,9 +348,9 @@ header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--s
   padding:3px 4px;border-radius:4px}
 .iss-nm:hover,.iss-am:hover{background:color-mix(in srgb,var(--pB) 9%,transparent)}
 .iss-nm:focus,.iss-am:focus{background:var(--surface-2);outline:1px solid var(--pB)}
-.iss-card select.iss-card,select.iss-card{width:100%;max-width:none;border:1px solid var(--line);
+.iss-pick{width:100%;max-width:none;border:1px solid var(--line);margin:0;
   background:var(--surface);border-radius:8px;padding:4px 8px;font-size:11.5px;
-  color:var(--ink-2);cursor:pointer}
+  color:var(--ink-2);cursor:pointer;box-shadow:none}
 .iss-row .flagbtn{justify-self:start}
 .iss-state{font-size:10.5px;color:var(--faint);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis;min-width:0}
@@ -709,7 +709,7 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
   .iss-nm{grid-area:name;font-size:15px;font-weight:500}
   .iss-am{grid-area:amount;width:112px;font-size:15px;justify-self:end}
   .iss-row .flagbtn{grid-area:flag;justify-self:start}
-  .iss-card select.iss-card,select.iss-card{grid-area:card;max-width:none;justify-self:start;font-size:12px}
+  .iss-pick{grid-area:card;max-width:none;justify-self:start;font-size:12px}
   .iss-state{grid-area:state}
   .iss-row .del{grid-area:del;justify-self:end;opacity:.55}
   .gf-grid{grid-template-columns:1fr;row-gap:2px}
@@ -1967,7 +1967,7 @@ function renderIssues(){
     fb.addEventListener('click',()=>{ syncIssues(); });
     r.appendChild(fb);
 
-    const sel=el('select','iss-card');
+    const sel=el('select','iss-pick');
     sel.setAttribute('aria-label','어느 카드로 결제했나요');
     const o0=el('option',null,'카드 고르기'); o0.value=''; sel.appendChild(o0);
     choices.forEach(c=>{
