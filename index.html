@@ -302,6 +302,8 @@ header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--s
   border-bottom:1px dashed transparent;border-radius:4px}
 .gr-nm:hover,.gr-am:hover{background:color-mix(in srgb,var(--bar) 9%,transparent)}
 .gr-nm:focus,.gr-am:focus{background:var(--surface-2);outline:1px solid var(--bar)}
+.gr-tag{flex:none;font-size:10px;letter-spacing:.03em;color:var(--muted);
+  border:1px solid var(--line);border-radius:20px;padding:1px 7px;line-height:1.6}
 .gr-del{width:20px;color:var(--faint);opacity:0;font-size:15px;line-height:1;flex:none}
 .groc-row:hover .gr-del{opacity:1}
 .gr-del:hover{color:var(--neg)}
@@ -1510,21 +1512,33 @@ function grocBase(){
   return grocCandidates().find(c=>c.item.id===g.base) || null;
 }
 /* 차감 목록에 담긴 항목들 — 신한카드 세부 내역을 그대로 가리킨다 */
-function grocItems(){
-  const g=grocCfg(), b=grocBase();
-  if(!g||!b) return [];
-  const kids=b.item.children||[];
-  g.deduct = g.deduct.filter(id => kids.some(k=>k.id===id));   // 지워진 내역은 정리
-  g.on = g.on.filter(id => g.deduct.indexOf(id)>=0);
-  return g.deduct.map(id => kids.find(k=>k.id===id));
+/* 차감 내역은 두 갈래다.
+   linked : 카드 세부 내역을 가리킨다 (카드 내역에서 가져온 것). 고치면 장부도 같이 바뀐다.
+   own    : 이 패널만 가진 줄. 카드 세부 내역에는 만들지 않는다. */
+function grocOwn(){
+  const g=grocCfg(); if(!g) return [];
+  if(!Array.isArray(g.own)) g.own=[];
+  return g.own;
+}
+function grocEntries(){
+  const g=grocCfg(); if(!g) return [];
+  const out=[], b=grocBase();
+  if(b){
+    const kids=b.item.children||[];
+    g.deduct = g.deduct.filter(id => kids.some(k=>k.id===id));   // 지워진 내역은 정리
+    g.deduct.forEach(id=>{ const k=kids.find(x=>x.id===id); if(k) out.push({k, linked:true}); });
+  }
+  grocOwn().forEach(k=> out.push({k, linked:false}));
+  const ids=out.map(e=>e.k.id);
+  g.on = g.on.filter(id => ids.indexOf(id)>=0);
+  return out;
 }
 function grocCalc(){
   const g=grocCfg(), b=grocBase();
   if(!g||!b) return null;
-  const picked=grocItems();
-  const onSet=g.on;
-  const applied=picked.filter(k=>onSet.indexOf(k.id)>=0);   // 체크한 것만 실제로 뺀다
-  const cut=applied.reduce((a,k)=>a+num(k.amount),0);
+  const picked=grocEntries();
+  const applied=picked.filter(e=>g.on.indexOf(e.k.id)>=0);   // 체크한 것만 실제로 뺀다
+  const cut=applied.reduce((a,e)=>a+num(e.k.amount),0);
   const card=num(g.card), used=card-cut, budget=num(g.budget), left=budget-used;
   return {card, cut, used, budget, left, picked, applied, item:b.item, person:b.person,
           pct: budget? Math.min(200, used/budget*100) : 0};
@@ -1621,11 +1635,13 @@ function renderGrocery(){
     +(shortName(c.item.name)||'카드')+' 세부 내역도 같이 바뀝니다'));
   const list=el('div','groc-rows');
   const kidsArr=(c.item.children||[]);
-  c.picked.forEach(k=>{
+  c.picked.forEach(e=>{
+    const k=e.k, arr = e.linked ? kidsArr : grocOwn();
+    const after = e.linked ? (()=>{ renderLedger(); renderGrocery(); }) : (()=>renderGrocery());
     const on=g.on.indexOf(k.id)>=0;
     const r=el('div','groc-row'+(on?' on':''));
-    r.appendChild(dragHandle(r, kidsArr, k, ()=>{ renderLedger(); renderGrocery(); }));
-    makeSortable(r, kidsArr, k, ()=>{ renderLedger(); renderGrocery(); });
+    r.appendChild(dragHandle(r, arr, k, after));
+    makeSortable(r, arr, k, after);
     const ck=el('button','chk gr-chk');
     ck.setAttribute('aria-pressed', on?'true':'false');
     ck.setAttribute('aria-label','차감에 넣기');
@@ -1637,19 +1653,36 @@ function renderGrocery(){
     });
     r.appendChild(ck);
     const nm=el('input','f gr-nm'); nm.value=k.name||''; nm.placeholder='내역명';
-    nm.addEventListener('input',()=>{ k.name=nm.value; syncKidRow(k); save('month'); });
+    nm.addEventListener('input',()=>{ k.name=nm.value; if(e.linked) syncKidRow(k); save('month'); });
     keyNav(nm, ()=>addGrocItem());
     r.appendChild(nm);
-    const am=grocNumField(k.amount, v=>{ k.amount=v; syncKidRow(k); recalcQuiet(); updateGrocery(); save('month'); }, 'gr-am');
+    const am=grocNumField(k.amount, v=>{
+      k.amount=v;
+      if(e.linked){ syncKidRow(k); recalcQuiet(); }
+      updateGrocery(); save('month');
+    }, 'gr-am');
     keyNav(am, ()=>addGrocItem());
     r.appendChild(am);
-    const d=aux(el('button','gr-del','×'),'차감 목록에서 빼기');
-    d.title='차감 목록에서 빼기 (카드 세부 내역은 그대로 둡니다)';
+    if(e.linked){
+      const tag=el('span','gr-tag','카드');
+      tag.title=(shortName(c.item.name)||'카드')+' 세부 내역과 이어져 있습니다';
+      r.appendChild(tag);
+    }
+    const d=aux(el('button','gr-del','×'), e.linked? '차감 목록에서 빼기' : '이 줄 지우기');
+    d.title = e.linked ? '차감 목록에서 빼기 (카드 세부 내역은 그대로 둡니다)' : '이 줄 지우기';
     d.addEventListener('click',()=>{
-      const g2=grocCfg(); const i=g2.deduct.indexOf(k.id);
-      if(i>=0) g2.deduct.splice(i,1);
-      renderGrocery(); save('month');
-      showToast('‘'+(k.name||'내역')+'’ 을 차감 목록에서 뺐습니다 · 카드 세부 내역에는 남아 있습니다', doUndo);
+      const g2=grocCfg();
+      if(e.linked){
+        const i=g2.deduct.indexOf(k.id);
+        if(i>=0) g2.deduct.splice(i,1);
+        renderGrocery(); save('month');
+        showToast('‘'+(k.name||'내역')+'’ 을 차감 목록에서 뺐습니다 · 카드 세부 내역에는 남아 있습니다', doUndo);
+      }else{
+        const arr2=grocOwn(), j=arr2.indexOf(k);
+        if(j>=0) arr2.splice(j,1);
+        renderGrocery(); save('month');
+        showToast('‘'+(k.name||'내역')+'’ 을 지웠습니다', doUndo);
+      }
     });
     r.appendChild(d);
     list.appendChild(r);
@@ -1662,7 +1695,8 @@ function renderGrocery(){
   add.addEventListener('click', ()=>addGrocItem());
   tools.appendChild(add);
 
-  const rest=(c.item.children||[]).filter(k=>c.picked.indexOf(k)<0);
+  const inList=c.picked.map(e=>e.k);
+  const rest=(c.item.children||[]).filter(k=>inList.indexOf(k)<0);
   if(rest.length){
     const pull=el('select','groc-pull');
     pull.setAttribute('aria-label','카드 세부 내역에서 가져오기');
@@ -1681,16 +1715,13 @@ function renderGrocery(){
   updateGrocery();
 }
 
-/* 패널의 ＋ 내역 추가 — 카드 세부 내역에도 같은 줄이 생긴다 */
+/* 패널의 ＋ 내역 추가 — 이 패널에만 생긴다. 카드 세부 내역은 건드리지 않는다. */
 function addGrocItem(){
-  const g=grocCfg(), b=grocBase();
-  if(!b){ showToast('먼저 연동할 카드를 골라주세요.'); return; }
-  const k={id:uid(), name:'', amount:0, note:'', flag:''};
-  b.item.children = b.item.children || [];
-  b.item.children.push(k);
-  g.deduct.push(k.id);
-  b.item.open = true;
-  renderLedger(); renderGrocery(); save('month');
+  const g=grocCfg();
+  if(!g){ return; }
+  const k={id:uid(), name:'', amount:0};
+  grocOwn().push(k);
+  renderGrocery(); save('month');
   requestAnimationFrame(()=>{
     const rows=document.querySelectorAll('#grocery .groc-row input.gr-nm');
     const last=rows[rows.length-1]; if(last) last.focus();
