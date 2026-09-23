@@ -331,18 +331,26 @@ header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--s
 .iss-name{font-weight:700;font-size:14px;letter-spacing:-.01em}
 .iss-tag{font-size:11px;color:var(--faint)}
 .iss-rows{display:flex;flex-direction:column;gap:2px}
-.iss-row{display:flex;align-items:center;gap:8px;padding:4px 0}
-.iss-row:hover{background:var(--surface-2);border-radius:6px;margin:0 -6px;padding:4px 6px}
-.iss-nm{flex:1 1 150px;min-width:0;font-size:13.5px;border:none;background:none;
+/* 줄마다 같은 격자를 써야 칸이 세로로 맞는다 */
+.iss-cols,.iss-row{display:grid;align-items:center;column-gap:10px;
+  grid-template-columns:minmax(110px,1fr) 118px 78px 172px minmax(84px,150px) 26px}
+/* 머리줄과 본문이 같은 여백을 써야 hover 때 칸이 흔들리지 않는다 */
+.iss-cols,.iss-row{margin:0 -6px;padding-left:6px;padding-right:6px}
+.iss-cols{padding-top:2px;padding-bottom:5px;font-size:10.5px;letter-spacing:.06em;color:var(--muted)}
+.iss-cols span:nth-child(2){text-align:right}
+.iss-row{padding-top:4px;padding-bottom:4px;border-radius:6px}
+.iss-row:hover{background:var(--surface-2)}
+.iss-nm{min-width:0;width:100%;font-size:13.5px;border:none;background:none;
   padding:3px 4px;border-radius:4px}
-.iss-am{flex:none;width:112px;text-align:right;font-size:13.5px;border:none;background:none;
+.iss-am{width:100%;text-align:right;font-size:13.5px;border:none;background:none;
   padding:3px 4px;border-radius:4px}
 .iss-nm:hover,.iss-am:hover{background:color-mix(in srgb,var(--pB) 9%,transparent)}
 .iss-nm:focus,.iss-am:focus{background:var(--surface-2);outline:1px solid var(--pB)}
-.iss-card select.iss-card,select.iss-card{flex:none;max-width:160px;border:1px solid var(--line);
-  background:var(--surface);border-radius:8px;padding:3px 8px;font-size:11.5px;
+.iss-card select.iss-card,select.iss-card{width:100%;max-width:none;border:1px solid var(--line);
+  background:var(--surface);border-radius:8px;padding:4px 8px;font-size:11.5px;
   color:var(--ink-2);cursor:pointer}
-.iss-state{flex:0 1 auto;font-size:10.5px;color:var(--faint);white-space:nowrap;
+.iss-row .flagbtn{justify-self:start}
+.iss-state{font-size:10.5px;color:var(--faint);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis;min-width:0}
 .iss-state.done{color:var(--accent);font-weight:600}
 .iss-state.off{color:var(--neg)}
@@ -691,6 +699,7 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
 
   /* 비빅 · 식생품 */
   .bibik-card,.groc-card,.iss-card{padding:14px 14px 16px;margin-bottom:16px}
+  .iss-cols{display:none}
   .iss-row{display:grid;grid-template-columns:auto 1fr auto;
     grid-template-areas:"name name amount" "flag card del" "state state state";
     gap:4px 8px;padding:10px 0;border-bottom:1px dashed var(--line-soft)}
@@ -1931,6 +1940,11 @@ function renderIssues(){
   }
 
   const rows=el('div','iss-rows');
+  if(list.length){
+    const hd=el('div','iss-cols');
+    ['결제명','결제액','상태','카드','진행',''].forEach(t=>hd.appendChild(el('span',null,t)));
+    rows.appendChild(hd);
+  }
   list.forEach(x=>{
     const r=el('div','iss-row'+(issueReady(x)?' ready':''));
 
