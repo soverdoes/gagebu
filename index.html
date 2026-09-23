@@ -323,6 +323,36 @@ header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--s
 .groc-chip.on .tick,.groc-chip.on .am{color:var(--bar)}
 .groc-empty{font-size:12px;color:var(--faint);padding:6px 0}
 
+/* ---- 이달 카드사용 이슈 ---- */
+.iss-card{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--pB);
+  border-radius:var(--r);box-shadow:var(--shadow);padding:13px 18px 15px;margin:0 0 22px}
+.iss-card[hidden]{display:none}
+.iss-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:11px}
+.iss-name{font-weight:700;font-size:14px;letter-spacing:-.01em}
+.iss-tag{font-size:11px;color:var(--faint)}
+.iss-rows{display:flex;flex-direction:column;gap:2px}
+.iss-row{display:flex;align-items:center;gap:8px;padding:4px 0}
+.iss-row:hover{background:var(--surface-2);border-radius:6px;margin:0 -6px;padding:4px 6px}
+.iss-nm{flex:1 1 150px;min-width:0;font-size:13.5px;border:none;background:none;
+  padding:3px 4px;border-radius:4px}
+.iss-am{flex:none;width:112px;text-align:right;font-size:13.5px;border:none;background:none;
+  padding:3px 4px;border-radius:4px}
+.iss-nm:hover,.iss-am:hover{background:color-mix(in srgb,var(--pB) 9%,transparent)}
+.iss-nm:focus,.iss-am:focus{background:var(--surface-2);outline:1px solid var(--pB)}
+.iss-card select.iss-card,select.iss-card{flex:none;max-width:160px;border:1px solid var(--line);
+  background:var(--surface);border-radius:8px;padding:3px 8px;font-size:11.5px;
+  color:var(--ink-2);cursor:pointer}
+.iss-state{flex:0 1 auto;font-size:10.5px;color:var(--faint);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;min-width:0}
+.iss-state.done{color:var(--accent);font-weight:600}
+.iss-state.off{color:var(--neg)}
+.iss-row .del{opacity:0}
+.iss-row:hover .del{opacity:1}
+.iss-sum{font-size:11.5px;color:var(--muted);margin-left:auto}
+.from-tag{flex:none;font-size:10px;color:var(--pB);background:var(--pB-soft);
+  border:1px solid color-mix(in srgb,var(--pB) 34%,transparent);
+  border-radius:20px;padding:1px 7px;line-height:1.6;letter-spacing:.02em}
+
 /* ---- ledger ---- */
 .ledger{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 @media (max-width:900px){.ledger{grid-template-columns:1fr}}
@@ -450,6 +480,11 @@ tr:hover .iconbtn{opacity:1}
 .krow .nm{font-weight:400;font-size:12.5px;color:var(--ink-2)}
 .krow .amt{width:96px;font-size:12.5px;font-weight:400}
 .krow .note{flex:0 1 110px;font-size:11px}
+.repbtn{flex:none;font-size:10px;padding:1px 7px;border-radius:20px;border:1px solid transparent;
+  color:var(--faint);letter-spacing:.03em;line-height:1.6;opacity:.4;transition:opacity .12s}
+.row:hover .repbtn,.krow:hover .repbtn,.repbtn:focus-visible{opacity:1;border-color:var(--line)}
+.repbtn[data-on="1"]{opacity:1;color:var(--pA);background:var(--pA-soft);
+  border-color:color-mix(in srgb,var(--pA) 34%,transparent);font-weight:600}
 .flagbtn{flex:none;font-size:10px;padding:1px 7px;border-radius:20px;border:1px solid transparent;color:var(--faint);
   letter-spacing:.03em;line-height:1.6;opacity:.4;transition:opacity .12s}
 .row:hover .flagbtn,.krow:hover .flagbtn,.flagbtn:focus-visible{opacity:1;border-color:var(--line)}
@@ -655,7 +690,17 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
   .tile.hero .v{font-size:28px}
 
   /* 비빅 · 식생품 */
-  .bibik-card,.groc-card{padding:14px 14px 16px;margin-bottom:16px}
+  .bibik-card,.groc-card,.iss-card{padding:14px 14px 16px;margin-bottom:16px}
+  .iss-row{display:grid;grid-template-columns:auto 1fr auto;
+    grid-template-areas:"name name amount" "flag card del" "state state state";
+    gap:4px 8px;padding:10px 0;border-bottom:1px dashed var(--line-soft)}
+  .iss-row:hover{margin:0;padding:10px 0}
+  .iss-nm{grid-area:name;font-size:15px;font-weight:500}
+  .iss-am{grid-area:amount;width:112px;font-size:15px;justify-self:end}
+  .iss-row .flagbtn{grid-area:flag;justify-self:start}
+  .iss-card select.iss-card,select.iss-card{grid-area:card;max-width:none;justify-self:start;font-size:12px}
+  .iss-state{grid-area:state}
+  .iss-row .del{grid-area:del;justify-self:end;opacity:.55}
   .gf-grid{grid-template-columns:1fr;row-gap:2px}
   .gf-step{display:grid;grid-template-columns:auto 1fr;align-items:baseline;
     column-gap:12px;padding:7px 0;border-bottom:1px dashed var(--line-soft)}
@@ -679,13 +724,14 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
      흘려보내면 이름이 한 글자로 눌리고 삭제 버튼이 혼자 줄을 차지한다. */
   .krow{display:grid;align-items:center;column-gap:9px;row-gap:3px;
     grid-template-columns:auto 1fr auto;
-    grid-template-areas:"grip name amount" "flag memo del";
-    padding:9px 0}
+    grid-template-areas:"grip name amount" "flag rep del" "memo memo memo";
+    padding:10px 0}
   .krow .grip{grid-area:grip;justify-self:start}
   .krow .nm{grid-area:name;font-size:15px;font-weight:500;color:var(--ink)}
   .krow .amt{grid-area:amount;flex:none;width:108px;font-size:15px}
   .krow .flagbtn{grid-area:flag;justify-self:start}
-  .krow .note{grid-area:memo;flex:none;font-size:12.5px;text-align:left}
+  .krow .repbtn{grid-area:rep;justify-self:start}
+  .krow .note{grid-area:memo;flex:none;font-size:12.5px;text-align:left;min-width:0}
   .krow .del{grid-area:del;justify-self:end}
   /* 이름은 줄어들고 금액은 같은 줄 오른쪽에 붙는다 */
   .nm{flex:1 1 0;min-width:0;width:auto;font-size:15.5px;text-overflow:ellipsis}
@@ -693,7 +739,7 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
   .note{flex:1 1 100%;order:8;font-size:13px}
   span.note:empty{display:none}          /* 수입 줄의 빈 메모 자리가 한 줄을 먹지 않게 */
   .p-head .inc{min-width:0}
-  .flagbtn,.summode,.exp,.del,.linksel{order:9}
+  .flagbtn,.repbtn,.summode,.exp,.del,.linksel{order:9}
   .flagbtn{font-size:11.5px;padding:3px 10px}
   .linksel{max-width:none;flex:1 1 auto;font-size:11.5px;padding:3px 8px}
   .chk{width:22px;height:22px;border-radius:6px}
@@ -805,6 +851,7 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
     <section class="summary" id="summary"></section>
     <section class="bibik-card" id="bibik"></section>
     <section class="groc-card" id="grocery"></section>
+    <section class="iss-card" id="issues"></section>
     <div class="ledger" id="ledger"></div>
   </div>
 
@@ -1499,6 +1546,12 @@ function grocCfg(){
 }
 /* 카드 항목 이름 앞의 "8월 " 같은 달 표시는 식생품 패널에서 뺀다.
    9월 장부에서 8월 카드값을 보게 되니 헷갈린다. */
+/* "8월 하나카드" 를 다음 달 장부에서는 "9월 하나카드" 로 */
+function bumpMonthName(n){
+  return String(n||'').replace(/^(\s*)(\d{1,2})(\s*월\s*)/, function(_,a,d,c){
+    const m=(+d)%12+1; return a+m+c;
+  });
+}
 function shortName(n){ return String(n||'').replace(/^\s*\d{1,2}\s*월\s*/, '').trim(); }
 function grocCandidates(){
   const out=[];
@@ -1760,6 +1813,211 @@ function updateGrocery(){
   }
 }
 
+/* ===== 이달 카드사용 이슈 =====
+   이번 달에 카드로 쓴 돈은 다음 달에 청구된다. 그래서 여기 적어 두면
+   다음 달 장부의 그 카드 세부 내역으로 들어간다.
+   이번 달 합계에는 넣지 않는다 — 아직 낸 돈이 아니다. */
+function issues(){
+  if(!MONTH) return [];
+  if(!Array.isArray(MONTH.issues)) MONTH.issues=[];
+  return MONTH.issues;
+}
+function nextKey(k){
+  const [y,m]=String(k||'').split('-').map(Number);
+  if(!y||!m) return null;
+  return m===12 ? (y+1)+'-01' : y+'-'+String(m+1).padStart(2,'0');
+}
+/* 카드로 쓸 수 있는 항목 — 사람 + 카드 이름(달 표시는 뗀다) */
+function cardChoices(){
+  const out=[];
+  ((MONTH&&MONTH.people)||[]).forEach(p=>(p.sections||[]).forEach(sec=>(sec.items||[]).forEach(it=>{
+    if((it.children||[]).length || isSum(it))
+      out.push({person:p.name, card:shortName(it.name)||it.name, item:it});
+  })));
+  return out;
+}
+function issueReady(x){
+  return !!(String(x.name||'').trim() && num(x.amount)>0 && x.person && x.card);
+}
+function readyIssues(){ return issues().filter(issueReady); }
+
+/* 새 달 문서에 이슈를 얹는다. 대상은 사람 이름 + 카드 이름으로 찾는다. */
+function pushIssuesInto(doc){
+  const list=readyIssues();
+  if(!list.length || !doc) return 0;
+  let n=0;
+  list.forEach(x=>{
+    if(x.unlinked) return;
+    let target=null;
+    (doc.people||[]).forEach(p=>{
+      if(p.name!==x.person) return;
+      (p.sections||[]).forEach(sec=>(sec.items||[]).forEach(it=>{
+        if(!target && shortName(it.name)===x.card) target=it;
+      }));
+    });
+    if(!target) return;
+    target.children = target.children || [];
+    const kid = {id: 'iss-'+x.id, name: x.name, amount: num(x.amount),
+                 note: x.note||'', flag: x.flag||'', repeat:false,
+                 from: {month: MKEY, issue: x.id}};
+    const at = target.children.findIndex(k=>k.id===kid.id);
+    if(at>=0) target.children[at]=kid; else target.children.push(kid);
+    x.pushedTo = doc.month; x.pushedId = kid.id;
+    n++;
+  });
+  return n;
+}
+
+/* 다음 달 장부가 이미 있으면 그쪽 문서를 직접 고쳐 맞춰 둔다 */
+let issueSyncT=null;
+function syncIssues(){
+  clearTimeout(issueSyncT);
+  issueSyncT=setTimeout(async ()=>{
+    if(!DB||!MONTH) return;
+    const nk=nextKey(MKEY);
+    if(!nk || MONTHS.indexOf(nk)<0) return;      // 다음 달이 아직 없으면 만들 때 넣는다
+    try{
+      const snap=await DB.doc('months/'+nk).get();
+      if(!snap.exists) return;
+      const doc=clone(snap.data());
+      const want=new Set(readyIssues().filter(x=>!x.unlinked).map(x=>'iss-'+x.id));
+      let changed=false;
+      // 지워졌거나 조건이 빠진 이슈의 줄은 거둬들인다
+      (doc.people||[]).forEach(p=>(p.sections||[]).forEach(sec=>(sec.items||[]).forEach(it=>{
+        const before=(it.children||[]).length;
+        it.children=(it.children||[]).filter(k=>{
+          const mine = k.from && k.from.month===MKEY;
+          return !mine || want.has(k.id);
+        });
+        if(it.children.length!==before) changed=true;
+      })));
+      // 저쪽에서 손수 지운 줄은 다시 만들지 않고 연결만 끊는다
+      const present=new Set();
+      (doc.people||[]).forEach(p=>(p.sections||[]).forEach(sec=>(sec.items||[]).forEach(it=>
+        (it.children||[]).forEach(k=>present.add(k.id)))));
+      issues().forEach(x=>{
+        if(x.pushedTo===nk && x.pushedId && !present.has(x.pushedId) && !want.has(x.pushedId)) return;
+        if(x.pushedTo===nk && x.pushedId && !present.has(x.pushedId)) x.unlinked=true;
+      });
+      const before=JSON.stringify(doc);
+      pushIssuesInto(doc);
+      if(changed || JSON.stringify(doc)!==before){
+        await DB.doc('months/'+nk).set(doc);
+      }
+      renderIssues();
+      save('month');
+    }catch(e){}
+  }, 800);
+}
+
+function renderIssues(){
+  const box=$('#issues'); if(!box) return;
+  box.innerHTML='';
+  if(!MONTH){ box.hidden=true; return; }
+  box.hidden=false;
+  const list=issues(), choices=cardChoices();
+  const nk=nextKey(MKEY);
+  const nkLabel = nk ? nk.slice(0,4)+'.'+nk.slice(5) : '다음 달';
+
+  const head=el('div','iss-head');
+  head.appendChild(el('span','iss-name','이달 카드사용 이슈'));
+  head.appendChild(el('span','iss-tag',
+    '이번 달에 긁은 돈 · '+nkLabel+' 카드값으로 넘어갑니다 · 이번 달 합계에는 안 들어갑니다'));
+  box.appendChild(head);
+
+  if(!choices.length){
+    box.appendChild(el('div','groc-empty','카드 항목이 없습니다. 고정비에 카드 항목을 먼저 만들어 주세요.'));
+    return;
+  }
+
+  const rows=el('div','iss-rows');
+  list.forEach(x=>{
+    const r=el('div','iss-row'+(issueReady(x)?' ready':''));
+
+    const nm=el('input','f iss-nm'); nm.value=x.name||''; nm.placeholder='결제명';
+    nm.addEventListener('input',()=>{ x.name=nm.value; touchIssue(r,x); });
+    keyNav(nm, ()=>addIssue());
+    r.appendChild(nm);
+
+    const am=el('input','f iss-am num'); am.inputMode='numeric'; am.placeholder='결제액';
+    am.value = num(x.amount)? NF.format(num(x.amount)) : '';
+    am.addEventListener('focus',()=>{ am.value = num(am.value)? String(num(am.value)):''; am.select(); });
+    am.addEventListener('blur',()=>{ const n=num(am.value); am.value=n? NF.format(n):''; });
+    am.addEventListener('input',()=>{ x.amount=num(am.value); touchIssue(r,x); });
+    keyNav(am, ()=>addIssue());
+    r.appendChild(am);
+
+    const fb=flagButton(x, null);          // 월급 · 비빅 · 제외
+    fb.addEventListener('click',()=>{ syncIssues(); });
+    r.appendChild(fb);
+
+    const sel=el('select','iss-card');
+    sel.setAttribute('aria-label','어느 카드로 결제했나요');
+    const o0=el('option',null,'카드 고르기'); o0.value=''; sel.appendChild(o0);
+    choices.forEach(c=>{
+      const key=c.person+'|'+c.card;
+      const o=el('option',null, c.person+' · '+c.card); o.value=key;
+      if(x.person===c.person && x.card===c.card) o.selected=true;
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change',()=>{
+      const [pn,cn]=sel.value.split('|');
+      x.person=pn||''; x.card=cn||''; touchIssue(r,x);
+    });
+    r.appendChild(sel);
+
+    const st=el('span','iss-state');
+    if(x.unlinked) { st.textContent=nkLabel+'에서 지움'; st.classList.add('off'); }
+    else if(x.pushedTo) { st.textContent=x.pushedTo.slice(0,4)+'.'+x.pushedTo.slice(5)+'에 반영됨'; st.classList.add('done'); }
+    else if(issueReady(x)) st.textContent=nk && MONTHS.indexOf(nk)>=0 ? '반영 중…' : nkLabel+' 만들 때 들어갑니다';
+    else st.textContent='값을 다 채우면 넘어갑니다';
+    r.appendChild(st);
+
+    const d=aux(el('button','del','×'),'삭제'); d.title='이 이슈 지우기';
+    d.addEventListener('click',()=>{
+      withUndo('‘'+(x.name||'이름 없는 결제')+'’ 지움', ()=>{
+        const i=list.indexOf(x); if(i>=0) list.splice(i,1);
+        renderIssues(); save('month'); syncIssues();
+      });
+    });
+    r.appendChild(d);
+
+    rows.appendChild(r);
+  });
+  if(!list.length) rows.appendChild(el('div','groc-empty','아직 적어 둔 결제가 없습니다.'));
+  box.appendChild(rows);
+
+  const tools=el('div','groc-tools');
+  const add=el('button','ghost','＋ 결제 추가');
+  add.addEventListener('click',()=>addIssue());
+  tools.appendChild(add);
+  const ready=readyIssues();
+  if(ready.length){
+    const sum=ready.reduce((a,x)=>a+num(x.amount),0);
+    const bib=ready.filter(x=>x.flag==='bibik').reduce((a,x)=>a+num(x.amount),0);
+    tools.appendChild(el('span','iss-sum',
+      ready.length+'건 · '+won(sum)+(bib? ' (비빅 '+won(bib)+')':'')));
+  }
+  box.appendChild(tools);
+}
+function touchIssue(r,x){
+  r.classList.toggle('ready', issueReady(x));
+  save('month'); syncIssues();
+  clearTimeout(touchIssue._t);
+  touchIssue._t=setTimeout(renderIssues, 900);   // 상태 문구만 뒤늦게 고쳐 준다
+}
+function addIssue(){
+  const list=issues();
+  const last=list[list.length-1];
+  list.push({id:uid(), name:'', amount:0, flag:'',
+             person:(last&&last.person)||'', card:(last&&last.card)||''});
+  renderIssues(); save('month');
+  requestAnimationFrame(()=>{
+    const ins=document.querySelectorAll('#issues .iss-nm');
+    const l=ins[ins.length-1]; if(l) l.focus();
+  });
+}
+
 /* 비빅(비상금) 통장의 한 달 흐름: 잔액 − 비빅 지출 = 잔고, + 남은 금액 = 다음 달 이월 */
 function renderBibik(c){
   const box=$('#bibik'); box.innerHTML='';
@@ -1812,6 +2070,8 @@ function recalc(){
   if(document.activeElement && document.activeElement.closest &&
      document.activeElement.closest('#grocery')) updateGrocery();
   else renderGrocery();
+  if(!(document.activeElement && document.activeElement.closest &&
+       document.activeElement.closest('#issues'))) renderIssues();
   const c=calc(MONTH); if(!c) return;
   document.querySelectorAll('.person').forEach((pn,pi)=>{
     pn.querySelectorAll('li').forEach(li=>{
@@ -1891,6 +2151,26 @@ function appliedTotal(){
   return t;
 }
 
+/* 매달 되풀이되는 내역인가.
+   카드 명세 줄은 대개 그 달에만 쓴 돈이라 기본은 꺼짐,
+   용돈 쪼개기처럼 늘 같은 갈래는 기본을 켜 둔다. */
+function repeatDefault(it){ return !isSum(it); }
+function isRepeat(it, k){ return k.repeat===undefined ? repeatDefault(it) : !!k.repeat; }
+function repeatButton(it, k){
+  const b=aux(el('button','repbtn'),'다음 달로 넘기기');
+  const paint=()=>{
+    const on=isRepeat(it,k);
+    b.dataset.on = on? '1':'0';
+    b.setAttribute('aria-pressed', on?'true':'false');
+    b.textContent = on? '↻ 반복' : '↻';
+    b.title = on ? '매달 되풀이되는 내역 — 다음 달 장부로 넘어갑니다'
+                 : '이번 달만 — 다음 달로 넘어가지 않습니다';
+  };
+  paint();
+  b.addEventListener('click',()=>{ k.repeat = !isRepeat(it,k); paint(); save('month'); });
+  return b;
+}
+
 const FLAG_LABEL = {'':'월급', bibik:'비빅', exclude:'제외'};
 const FLAG_TITLE = '클릭해서 전환 · 월급(월급에서 지출) → 비빅(비상금에서 지출, 카드값에는 포함) → 제외(어디에도 안 넣음)';
 function flagButton(obj, rowEl){
@@ -1918,6 +2198,12 @@ function kidRow(it, k, li){
   r.appendChild(el('span','leader'));
   r.appendChild(keyNav(amtField('amt', num(k.amount), v=>{k.amount=v;recalc();save('month');}), next));
   r.appendChild(flagButton(k, r));
+  r.appendChild(repeatButton(it, k));
+  if(k.from && k.from.month){
+    const t=el('span','from-tag', k.from.month.slice(5).replace(/^0/,'')+'월 이슈');
+    t.title=k.from.month.slice(0,4)+'.'+k.from.month.slice(5)+' 카드사용 이슈에서 넘어온 줄입니다';
+    r.appendChild(t);
+  }
   r.appendChild(keyNav(textField('note', k.note, v=>{k.note=v;save('month');}, '메모'), next));
   const d=aux(el('button','del','×'),'삭제'); d.title='삭제';
   d.addEventListener('click',()=>{
@@ -2491,10 +2777,33 @@ $('#addmonth').addEventListener('click',async()=>{
   const [y,m]=MKEY.split('-').map(Number);
   const nm = m===12? (y+1)+'-01' : y+'-'+String(m+1).padStart(2,'0');
   if(MONTHS.indexOf(nm)>=0){ openMonth(nm); return; }
-  const copy=clone(MONTH); copy.month=nm;
-  copy.people.forEach(p=>p.sections.forEach(s=>s.items.forEach(it=>{
-    it.done=false; it.applied=false; it.appliedAmount=0;   // 새 달은 아직 아무것도 납입되지 않았다
+
+  // 무엇이 넘어가고 무엇이 빠지는지 먼저 보여 준다
+  let keepN=0, dropN=0;
+  (MONTH.people||[]).forEach(p=>(p.sections||[]).forEach(sx=>(sx.items||[]).forEach(it=>{
+    (it.children||[]).forEach(k=>{ isRepeat(it,k)? keepN++ : dropN++; });
   })));
+  const issues=(typeof readyIssues==='function'? readyIssues():[]).length;
+  const lines=['항목과 금액은 그대로 옮깁니다 · 납부 체크만 풀립니다'];
+  if(keepN) lines.push('세부 내역 중 ↻ 반복으로 표시한 '+keepN+'건이 넘어갑니다');
+  if(dropN) lines.push('표시 없는 '+dropN+'건은 넘어가지 않습니다 (이번 달에만 쓴 돈)');
+  if(issues) lines.push('이달 카드사용 이슈 '+issues+'건이 해당 카드 밑으로 들어갑니다');
+  lines.push('‘8월 하나카드’ 같은 이름은 ‘9월 하나카드’ 로 한 칸 올립니다');
+  const ok = await confirmDialog({
+    title: nm.slice(0,4)+'년 '+(+nm.slice(5))+'월 장부를 만들까요?',
+    body: '이번 달 내용을 바탕으로 새 달을 만듭니다.',
+    list: lines, ok:'만들기' });
+  if(!ok) return;
+
+  const copy=clone(MONTH); copy.month=nm;
+  delete copy.issues;                       // 이슈는 새 달로 따라가지 않는다
+  copy.people.forEach((p,pi)=>p.sections.forEach((sx,si)=>sx.items.forEach((it,ii)=>{
+    it.done=false; it.applied=false; it.appliedAmount=0;   // 새 달은 아직 아무것도 납입되지 않았다
+    const src=MONTH.people[pi].sections[si].items[ii];
+    it.name = bumpMonthName(it.name);
+    it.children = (it.children||[]).filter((k,ki)=> isRepeat(src, src.children[ki]));
+  })));
+  if(typeof pushIssuesInto==='function') pushIssuesInto(copy);   // 카드 이슈를 새 달에 얹는다
   const carry = calc(MONTH).carry;          // 이번 달 비빅 이월액
   await DB.doc('months/'+nm).set(copy);
   if(MONTHS.indexOf(nm)<0){ MONTHS.push(nm); MONTHS.sort(); }
@@ -2550,7 +2859,7 @@ function openMonth(key){
     const d=snap.data();
     if(JSON.stringify(d)===JSON.stringify(MONTH)) return;
     if(isEditing()){ PEND.month=d; return; }
-    MONTH=clone(d); renderSummary(); renderLedger(); renderGrocery(); showDemoNotice();
+    MONTH=clone(d); renderSummary(); renderLedger(); renderGrocery(); renderIssues(); showDemoNotice();
   }, e=>{ setStatus('off','동기화 끊김 ('+(e&&e.code||'')+')'); done(); });
   setTimeout(done, 4000);          // 응답이 없어도 언젠가는 진행한다
   return ready;
