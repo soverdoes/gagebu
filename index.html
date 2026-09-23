@@ -335,7 +335,7 @@ header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--s
 .iss-rows{display:flex;flex-direction:column;gap:2px;max-width:940px}
 /* 줄마다 같은 격자를 써야 칸이 세로로 맞는다 */
 .iss-cols,.iss-row{display:grid;align-items:center;column-gap:10px;
-  grid-template-columns:minmax(140px,1fr) 112px 72px 168px 132px 26px}
+  grid-template-columns:minmax(140px,1fr) 112px 72px 168px 168px 26px}
 /* 머리줄과 본문이 같은 여백을 써야 hover 때 칸이 흔들리지 않는다 */
 .iss-cols,.iss-row{margin:0 -6px;padding-left:6px;padding-right:6px}
 .iss-cols{padding-top:2px;padding-bottom:5px;font-size:10.5px;letter-spacing:.06em;color:var(--muted)}
@@ -352,8 +352,13 @@ header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--s
   background:var(--surface);border-radius:8px;padding:4px 8px;font-size:11.5px;
   color:var(--ink-2);cursor:pointer;box-shadow:none}
 .iss-row .flagbtn{justify-self:start}
+.iss-prog{display:flex;align-items:center;gap:7px;min-width:0}
 .iss-state{font-size:10.5px;color:var(--faint);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis;min-width:0}
+.iss-relink{flex:none;font-size:10.5px;font-weight:600;color:var(--accent);
+  border:1px solid color-mix(in srgb,var(--accent) 38%,transparent);
+  background:var(--accent-soft);border-radius:20px;padding:2px 9px;line-height:1.6;white-space:nowrap}
+.iss-relink:hover{background:color-mix(in srgb,var(--accent) 18%,transparent)}
 .iss-state.done{color:var(--accent);font-weight:600}
 .iss-state.off{color:var(--neg)}
 .iss-row .del{opacity:0}
@@ -710,7 +715,8 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
   .iss-am{grid-area:amount;width:112px;font-size:15px;justify-self:end}
   .iss-row .flagbtn{grid-area:flag;justify-self:start}
   .iss-pick{grid-area:card;max-width:none;justify-self:start;font-size:12px}
-  .iss-state{grid-area:state}
+  .iss-prog{grid-area:state}
+  .iss-relink{font-size:12px;padding:4px 12px}
   .iss-row .del{grid-area:del;justify-self:end;opacity:.55}
   .gf-grid{grid-template-columns:1fr;row-gap:2px}
   .gf-step{display:grid;grid-template-columns:auto 1fr;align-items:baseline;
@@ -1907,7 +1913,6 @@ function syncIssues(){
       (doc.people||[]).forEach(p=>(p.sections||[]).forEach(sec=>(sec.items||[]).forEach(it=>
         (it.children||[]).forEach(k=>present.add(k.id)))));
       issues().forEach(x=>{
-        if(x.pushedTo===nk && x.pushedId && !present.has(x.pushedId) && !want.has(x.pushedId)) return;
         if(x.pushedTo===nk && x.pushedId && !present.has(x.pushedId)) x.unlinked=true;
       });
       const before=JSON.stringify(doc);
@@ -1982,12 +1987,25 @@ function renderIssues(){
     });
     r.appendChild(sel);
 
+    const cell=el('div','iss-prog');
     const st=el('span','iss-state');
-    if(x.unlinked) { st.textContent=nkLabel+'에서 지움'; st.classList.add('off'); }
-    else if(x.pushedTo) { st.textContent=x.pushedTo.slice(0,4)+'.'+x.pushedTo.slice(5)+'에 반영됨'; st.classList.add('done'); }
-    else if(issueReady(x)) st.textContent=nk && MONTHS.indexOf(nk)>=0 ? '반영 중…' : nkLabel+' 만들 때 들어갑니다';
-    else st.textContent='값을 다 채우면 넘어갑니다';
-    r.appendChild(st);
+    if(x.unlinked){
+      st.textContent=nkLabel+'에서 지움'; st.classList.add('off');
+      const re=el('button','iss-relink','다시 넣기');
+      re.title=nkLabel+' 장부에 이 결제를 다시 넣습니다';
+      re.addEventListener('click',()=>{
+        x.unlinked=false; x.pushedId=null; x.pushedTo=null;
+        renderIssues(); save('month'); syncIssues();
+        showToast('‘'+(x.name||'결제')+'’ 를 '+nkLabel+' 장부에 다시 넣습니다.');
+      });
+      cell.appendChild(st); cell.appendChild(re);
+    }else{
+      if(x.pushedTo){ st.textContent=x.pushedTo.slice(0,4)+'.'+x.pushedTo.slice(5)+'에 반영됨'; st.classList.add('done'); }
+      else if(issueReady(x)) st.textContent=nk && MONTHS.indexOf(nk)>=0 ? '반영 중…' : nkLabel+' 만들 때 들어갑니다';
+      else st.textContent='값을 다 채우면 넘어갑니다';
+      cell.appendChild(st);
+    }
+    r.appendChild(cell);
 
     const d=aux(el('button','del','×'),'삭제'); d.title='이 이슈 지우기';
     d.addEventListener('click',()=>{
@@ -2878,6 +2896,9 @@ function openMonth(key){
     MONTH=clone(d); renderSummary(); renderLedger(); renderGrocery(); renderIssues(); showDemoNotice();
   }, e=>{ setStatus('off','동기화 끊김 ('+(e&&e.code||'')+')'); done(); });
   setTimeout(done, 4000);          // 응답이 없어도 언젠가는 진행한다
+  // 달을 열 때마다 다음 달 쪽을 한 번 맞춰 본다.
+  // 저쪽에서 손수 지운 줄이 있으면 여기서 '지움' 으로 잡힌다.
+  ready.then(()=>{ if(typeof syncIssues==='function') syncIssues(); });
   return ready;
 }
 document.addEventListener('focusout',()=>{
