@@ -1859,9 +1859,12 @@ function issueReady(x){
 function readyIssues(){ return issues().filter(issueReady); }
 
 /* 새 달 문서에 이슈를 얹는다. 대상은 사람 이름 + 카드 이름으로 찾는다. */
-function pushIssuesInto(doc){
+/* key = 이 문서가 저장될 달 열쇠.
+   doc.month 를 믿지 않는다 — 문서 안의 값이 어긋나 있을 수 있다. */
+function pushIssuesInto(doc, key){
   const list=readyIssues();
   if(!list.length || !doc) return 0;
+  const to = key || doc.month;
   let n=0;
   list.forEach(x=>{
     if(x.unlinked) return;
@@ -1879,7 +1882,7 @@ function pushIssuesInto(doc){
                  from: {month: MKEY, issue: x.id}};
     const at = target.children.findIndex(k=>k.id===kid.id);
     if(at>=0) target.children[at]=kid; else target.children.push(kid);
-    x.pushedTo = doc.month; x.pushedId = kid.id;
+    x.pushedTo = to; x.pushedId = kid.id;
     n++;
   });
   return n;
@@ -1889,9 +1892,14 @@ function pushIssuesInto(doc){
 let issueSyncT=null;
 function syncIssues(){
   clearTimeout(issueSyncT);
+  /* 깨어날 때의 MKEY 를 쓰면 안 된다.
+     8백 밀리초 사이에 다른 달로 넘어가 있으면 엉뚱한 달에 꽂힌다
+     (9월에서 누르고 10월로 넘어가면 11월에 들어가 버렸다). */
+  const srcKey=MKEY, srcDoc=MONTH;
   issueSyncT=setTimeout(async ()=>{
     if(!DB||!MONTH) return;
-    const nk=nextKey(MKEY);
+    if(MKEY!==srcKey || MONTH!==srcDoc) return;  // 그 사이 달이 바뀌었으면 손대지 않는다
+    const nk=nextKey(srcKey);
     if(!nk || MONTHS.indexOf(nk)<0) return;      // 다음 달이 아직 없으면 만들 때 넣는다
     try{
       const snap=await DB.doc('months/'+nk).get();
@@ -1903,7 +1911,7 @@ function syncIssues(){
       (doc.people||[]).forEach(p=>(p.sections||[]).forEach(sec=>(sec.items||[]).forEach(it=>{
         const before=(it.children||[]).length;
         it.children=(it.children||[]).filter(k=>{
-          const mine = k.from && k.from.month===MKEY;
+          const mine = k.from && k.from.month===srcKey;
           return !mine || want.has(k.id);
         });
         if(it.children.length!==before) changed=true;
@@ -1912,11 +1920,32 @@ function syncIssues(){
       const present=new Set();
       (doc.people||[]).forEach(p=>(p.sections||[]).forEach(sec=>(sec.items||[]).forEach(it=>
         (it.children||[]).forEach(k=>present.add(k.id)))));
+      const strays=[];
       issues().forEach(x=>{
-        if(x.pushedTo===nk && x.pushedId && !present.has(x.pushedId)) x.unlinked=true;
+        const pid = x.pushedId || ('iss-'+x.id);
+        if(x.pushedTo && x.pushedTo!==nk){
+          // 예전 버그로 다음 달이 아닌 달에 꽂힌 기록. 그 줄을 치우고 표시를 비운다
+          strays.push({month:x.pushedTo, id:pid});
+          x.pushedTo=null; x.pushedId=null; x.unlinked=false;
+        }else if(x.pushedTo===nk && x.pushedId && !present.has(x.pushedId)){
+          x.unlinked=true;
+        }
       });
+      for(const st of strays){
+        try{
+          const ss=await DB.doc('months/'+st.month).get();
+          if(!ss.exists) continue;
+          const sd=clone(ss.data()); let hit=false;
+          (sd.people||[]).forEach(p=>(p.sections||[]).forEach(sec=>(sec.items||[]).forEach(it=>{
+            const n0=(it.children||[]).length;
+            it.children=(it.children||[]).filter(k=>k.id!==st.id);
+            if(it.children.length!==n0) hit=true;
+          })));
+          if(hit) await DB.doc('months/'+st.month).set(sd);
+        }catch(e){}
+      }
       const before=JSON.stringify(doc);
-      pushIssuesInto(doc);
+      pushIssuesInto(doc, nk);
       if(changed || JSON.stringify(doc)!==before){
         await DB.doc('months/'+nk).set(doc);
       }
@@ -2837,9 +2866,11 @@ $('#addmonth').addEventListener('click',async()=>{
     it.name = bumpMonthName(it.name);
     it.children = (it.children||[]).filter((k,ki)=> isRepeat(src, src.children[ki]));
   })));
-  if(typeof pushIssuesInto==='function') pushIssuesInto(copy);   // 카드 이슈를 새 달에 얹는다
+  if(typeof pushIssuesInto==='function') pushIssuesInto(copy, nm);   // 카드 이슈를 새 달에 얹는다
   const carry = calc(MONTH).carry;          // 이번 달 비빅 이월액
   await DB.doc('months/'+nm).set(copy);
+  // 이슈에 '어느 달로 갔는지' 가 적혔다. 달을 옮기기 전에 이번 달도 저장한다
+  try{ await DB.doc('months/'+MKEY).set(MONTH); }catch(e){}
   if(MONTHS.indexOf(nm)<0){ MONTHS.push(nm); MONTHS.sort(); }
   openMonth(nm);
   // 항목은 그대로 복사되지만 통장 잔액은 실제 값으로 바꿔야 한다
