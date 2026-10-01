@@ -35,6 +35,7 @@ img{max-width:100%}
   --pA:#1F6FB2; --pA-soft:#E6EFF8;
   --pB:#C56A16; --pB-soft:#FAEDE0;
   --neg:#B3352C; --pos:#0E7061; --bibik:#B5348A; --bibik-soft:#FAE9F4; --online:#15803D;
+  --warn:#A65A00; --warn-soft:#FBEEDD;
   --v1-bg:#EFE8FB; --v1-fg:#6B3FC4; --v1-bd:#D9CBF4;   /* 예금 · 보라 */
   --v2-bg:#FCE8F0; --v2-fg:#C0357A; --v2-bd:#F4CDDF;   /* 적금 · 자주 */
   --v3-bg:#FAF1DA; --v3-fg:#8F6D12; --v3-bd:#EEDFB6;   /* 투자 · 금색 */
@@ -53,6 +54,7 @@ img{max-width:100%}
     --pA:#4E93D8; --pA-soft:#152435;
     --pB:#CB7A2C; --pB-soft:#2E2114;
     --neg:#E27367; --pos:#3FB8A2; --bibik:#DE73B4; --bibik-soft:#301A28; --online:#4ADE80;
+    --warn:#E0A356; --warn-soft:#332413;
     --v1-bg:#251C3C; --v1-fg:#8F5FDB; --v1-bd:#3B2C60;
     --v2-bg:#351A28; --v2-fg:#D9558F; --v2-bd:#54293E;
     --v3-bg:#2E2712; --v3-fg:#A88420; --v3-bd:#473A1C;
@@ -67,6 +69,7 @@ img{max-width:100%}
   --pA:#4E93D8; --pA-soft:#152435;
   --pB:#CB7A2C; --pB-soft:#2E2114;
   --neg:#E27367; --pos:#3FB8A2; --bibik:#DE73B4; --bibik-soft:#301A28; --online:#4ADE80;
+    --warn:#E0A356; --warn-soft:#332413;
   --v1-bg:#251C3C; --v1-fg:#8F5FDB; --v1-bd:#3B2C60;
   --v2-bg:#351A28; --v2-fg:#D9558F; --v2-bd:#54293E;
   --v3-bg:#2E2712; --v3-fg:#A88420; --v3-bd:#473A1C;
@@ -495,6 +498,18 @@ tr:hover .iconbtn{opacity:1}
 .krow .nm{font-weight:400;font-size:12.5px;color:var(--ink-2)}
 .krow .amt{width:96px;font-size:12.5px;font-weight:400}
 .krow .note{flex:0 1 110px;font-size:11px}
+.ckchip{flex:none;font-size:10px;padding:1px 8px;border-radius:20px;line-height:1.6;
+  border:1px solid transparent;color:var(--faint);letter-spacing:.02em;white-space:nowrap;
+  opacity:0;transition:opacity .12s}
+.row:hover .ckchip,.ckchip:focus-visible,.ckchip[aria-expanded="true"]{opacity:1;border-color:var(--line)}
+/* 한번이라도 표시해 둔 줄은 마우스를 올리지 않아도 늘 보여야 한다 */
+.ckchip[data-s="ok"],.ckchip[data-s="stale"],.ckchip[data-s="sent"]{opacity:1;font-weight:600}
+.ckchip[data-s="ok"]{color:var(--pos);background:var(--accent-soft);
+  border-color:color-mix(in srgb,var(--pos) 32%,transparent)}
+.ckchip[data-s="stale"]{color:var(--warn);background:var(--warn-soft);
+  border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.ckchip[data-s="sent"]{color:var(--muted);background:var(--surface-2);border-color:var(--line-soft)}
+.f-duerow .val{color:var(--pos);font-weight:700}
 .repbtn{flex:none;font-size:10px;padding:1px 7px;border-radius:20px;border:1px solid transparent;
   color:var(--faint);letter-spacing:.03em;line-height:1.6;opacity:.4;transition:opacity .12s}
 .row:hover .repbtn,.krow:hover .repbtn,.repbtn:focus-visible{opacity:1;border-color:var(--line)}
@@ -756,7 +771,8 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
   .note{flex:1 1 100%;order:8;font-size:13px}
   span.note:empty{display:none}          /* 수입 줄의 빈 메모 자리가 한 줄을 먹지 않게 */
   .p-head .inc{min-width:0}
-  .flagbtn,.repbtn,.summode,.exp,.del,.linksel{order:9}
+  .flagbtn,.repbtn,.ckchip,.summode,.exp,.del,.linksel{order:9}
+  .ckchip{opacity:1;font-size:11.5px;padding:3px 10px}
   .flagbtn{font-size:11.5px;padding:3px 10px}
   .linksel{max-width:none;flex:1 1 auto;font-size:11.5px;padding:3px 8px}
   .chk{width:22px;height:22px;border-radius:6px}
@@ -2143,12 +2159,19 @@ function recalc(){
         // syncSums 가 이미 월급분으로 맞춰 둔 값을 쓴다 (청구액 전체가 아니다)
         const t=num(it.amount); li._amt.value = t? NF.format(t):'';
       }
+      if(li._ckchip) li._ckchip._paint();   // 금액이 바뀌면 확인 표시도 따라간다
     });
     const p=c.per[pi]; if(!p) return;
     const iv=pn.querySelector('.inc .v'); if(iv) iv.textContent=won(p.income);
     pn.querySelectorAll('.grp').forEach((g)=>{
       const key=g.dataset.k; const s=g.querySelector('.gs'); if(s) s.textContent=won(p.secs[key]||0);
     });
+    const dr=pn.querySelector('.f-duerow');
+    if(dr){
+      const due=settleDue(MONTH.people[pi]);
+      dr.hidden = !due;
+      if(due) pn.querySelector('.f-due').textContent=won(due);
+    }
     const ar=pn.querySelector('.f-adjrow');
     ar.hidden = !p.removed;
     if(p.removed) pn.querySelector('.f-adj').textContent='−'+won(p.removed);
@@ -2234,6 +2257,115 @@ function repeatButton(it, k){
   return b;
 }
 
+/* ===== 앱에서 본 금액과 장부를 맞춰 보는 표시 =====
+   카드값·교통비처럼 달이 끝난 뒤 실제 청구액을 앱에서 확인해야 하는 줄이 있다.
+   앱에서 금액을 본 사람이 '확인' 을 남기면 상대가 그걸 보고 돈을 보낸다.
+
+   it.check = { at:'2026-09-30', by:'재성', amount:3100000,
+                sent:{at:'2026-10-01', by:'유라'} }
+
+   확인한 뒤에 금액이 바뀌면(세부 내역을 한 줄 더했다든지) 확인은 저절로 풀린다.
+   틀린 금액을 그대로 보내는 일을 막기 위해서다. */
+function todayKey(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')
+         +'-'+String(d.getDate()).padStart(2,'0');
+}
+function mdLabel(k){
+  const a=String(k||'').split('-');
+  return a.length===3 ? (+a[1])+'/'+(+a[2]) : '';
+}
+function meName(){
+  if(!USER) return '';
+  return String(USER.displayName || USER.email || '').trim().split('@')[0];
+}
+function byLabel(n){ return n ? n+'님이 ' : ''; }
+
+function checkState(it){
+  const c=it.check; if(!c) return 'none';
+  if(num(it.amount)!==num(c.amount)) return 'stale';   // 확인 뒤에 금액이 바뀌었다
+  return c.sent ? 'sent' : 'ok';
+}
+/* 확인은 끝났고 아직 주고받지 않은 돈 */
+function settleDue(person){
+  let sum=0;
+  (person.sections||[]).forEach(sec=>(sec.items||[]).forEach(it=>{
+    if(checkState(it)==='ok') sum+=num(it.amount);
+  }));
+  return sum;
+}
+
+function checkChip(it){
+  const b=el('button','ckchip');
+  b.setAttribute('aria-haspopup','true');
+  const paint=()=>{
+    const st=checkState(it), c=it.check||{};
+    b.dataset.s=st;
+    if(st==='none'){
+      b.textContent='확인';
+      b.setAttribute('aria-label','금액 확인');
+      b.title='앱에서 본 금액이 장부와 같은지 표시해 둡니다';
+    }else if(st==='ok'){
+      b.textContent='✓ 확인 '+mdLabel(c.at);
+      b.setAttribute('aria-label','확인 완료 — 정산 전');
+      b.title=byLabel(c.by)+mdLabel(c.at)+'에 '+won(c.amount)+' 으로 확인했습니다'
+            + '\n아직 주고받지 않았습니다';
+    }else if(st==='stale'){
+      b.textContent='⚠ 금액 바뀜';
+      b.setAttribute('aria-label','확인한 뒤 금액이 바뀜');
+      b.title='확인할 때는 '+won(c.amount)+' 이었는데 지금은 '+won(it.amount)+' 입니다'
+            + '\n앱에서 다시 확인해 주세요';
+    }else{
+      b.textContent='✓ 정산 '+mdLabel(c.sent.at);
+      b.setAttribute('aria-label','정산까지 끝남');
+      b.title=byLabel(c.by)+mdLabel(c.at)+'에 '+won(c.amount)+' 으로 확인하고\n'
+            + byLabel(c.sent.by)+mdLabel(c.sent.at)+'에 주고받았습니다';
+    }
+  };
+  paint();
+  b._paint=paint;          // 금액이 바뀌면 recalc 가 다시 그린다
+
+  const done=msg=>{ renderLedger(); save('month'); if(msg) showToast(msg); };
+
+  b.addEventListener('click',e=>{
+    e.stopPropagation();
+    const st=checkState(it), c=it.check||{}, nm=it.name||'이 항목';
+    const menu=[];
+    if(st==='none' || st==='stale'){
+      menu.push({
+        label: st==='stale' ? '다시 확인하기' : '확인 완료로 표시',
+        desc: st==='stale'
+            ? won(c.amount)+' → '+won(it.amount)+' 로 바뀌었습니다. 지금 금액이 맞으면 누르세요'
+            : '앱에서 본 금액이 '+won(it.amount)+' 과 같으면 누르세요',
+        run:()=>{
+          it.check={at:todayKey(), by:meName(), amount:num(it.amount)};
+          done('‘'+nm+'’ '+won(it.amount)+' 확인 완료');
+        }});
+    }
+    if(st==='ok'){
+      menu.push({
+        label:'주고받았습니다', desc:won(it.amount)+' 정산 완료로 표시합니다',
+        run:()=>{
+          it.check.sent={at:todayKey(), by:meName()};
+          done('‘'+nm+'’ 정산까지 끝났습니다');
+        }});
+    }
+    if(st==='sent'){
+      menu.push({
+        label:'정산 되돌리기', desc:'아직 주고받지 않은 상태로 돌립니다',
+        run:()=>{ delete it.check.sent; done(); }});
+    }
+    if(st!=='none'){
+      menu.push({sep:true});
+      menu.push({label:'확인 기록 지우기', danger:true,
+        desc:'이 줄의 확인·정산 표시를 모두 없앱니다',
+        run:()=>{ delete it.check; done(); }});
+    }
+    showRowMenu(b, menu);
+  });
+  return b;
+}
+
 const FLAG_LABEL = {'':'월급', bibik:'비빅', exclude:'제외'};
 const FLAG_TITLE = '클릭해서 전환 · 월급(월급에서 지출) → 비빅(비상금에서 지출, 카드값에는 포함) → 제외(어디에도 안 넣음)';
 function flagButton(obj, rowEl){
@@ -2303,6 +2435,7 @@ function itemRow(sec, it){
   li._amt = keyNav(amtIn, nextItem); r.appendChild(amtIn);
   r.appendChild(flagButton(it, r));
   r.appendChild(keyNav(textField('note', it.note, v=>{it.note=v;save('month');}, '이체일 · 은행'), nextItem));
+  if(allowKids) li._ckchip = r.appendChild(checkChip(it));   // 저축 줄에는 붙이지 않는다
   let paintLink=()=>{};
   if(!allowKids){
     const ls=el('select','linksel'); li._linksel=ls;
@@ -2451,6 +2584,10 @@ function renderLedger(){
     const f=el('div','p-foot');
     const d0=el('div','f-adjrow'); d0.appendChild(el('span','k','비빅 · 제외 차감'));
     d0.appendChild(el('span','val num f-adj','—')); f.appendChild(d0);
+    const dd=el('div','f-duerow');
+    const dk=el('span','k','주고받을 돈');
+    dk.title='확인은 끝났고 아직 주고받지 않은 금액입니다';
+    dd.appendChild(dk); dd.appendChild(el('span','val num f-due','—')); f.appendChild(dd);
     const d1=el('div'); d1.appendChild(el('span','k','지출 합계')); d1.appendChild(el('span','val num f-spend','—')); f.appendChild(d1);
     const d2=el('div'); d2.appendChild(el('span','k','잔액 (수입 − 지출)')); d2.appendChild(el('span','val num f-net','—')); f.appendChild(d2);
     a.appendChild(f);
