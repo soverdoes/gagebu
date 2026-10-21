@@ -257,6 +257,11 @@ header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--s
   border-bottom:1px dashed var(--line);color:var(--ink)}
 .bb-step.edit input:hover{border-bottom-color:var(--bibik)}
 .bb-step.end .v{color:var(--bibik)}
+.bb-src{display:inline-block;margin-top:5px;font-size:10.5px;padding:2px 8px;line-height:1.6;
+  border:1px solid var(--line);border-radius:20px;background:none;color:var(--muted);white-space:nowrap}
+.bb-src:hover{background:var(--surface-2);color:var(--ink)}
+.bb-src[data-on="1"]{color:var(--bibik);background:var(--bibik-soft);
+  border-color:color-mix(in srgb,var(--bibik) 32%,transparent);font-weight:600}
 .bb-flow .v.neg{color:var(--neg)}
 .bb-op{font-size:15px;color:var(--faint);padding-bottom:3px;font-family:var(--mono)}
 @media (max-width:640px){.bb-op{display:none}.bb-flow{gap:12px 22px}}
@@ -749,9 +754,10 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
   .gf-step input.v{max-width:none;width:100%;text-align:right}
   .gf-div{display:none}
   .bb-flow{gap:0}
-  .bb-step{display:grid;grid-template-columns:auto 1fr;align-items:baseline;
+.bb-step{display:grid;grid-template-columns:auto 1fr;align-items:baseline;
     column-gap:12px;width:100%;padding:7px 0;border-bottom:1px dashed var(--line-soft)}
   .bb-step .v{text-align:right;justify-self:end}
+  .bb-src{grid-column:1/-1;justify-self:end;font-size:11.5px;padding:3px 10px}
 
   /* 장부 한 줄을 두 줄로 — 이름·금액이 먼저, 메모와 표시는 아래로 */
   .grp{padding:11px 13px 13px}
@@ -1189,6 +1195,39 @@ function calc(m){
   const account = num(m.bibikAccount!=null ? m.bibikAccount : m.bibikBalance);
   return {per,totalIn,totalOut,savings,bibik,left,
           account, rest: account-bibik, carry: account-bibik+left};
+}
+
+/* ===== 지난 달에서 넘어온 비빅 잔액 =====
+   10월의 '다음 달 이월' 이 11월의 '통장 잔액' 이 된다.
+   bibikManual 이 false 인 달만 따라간다. 숫자를 손으로 고치면 true 가 되어 더는 따라가지 않는다.
+   예전부터 있던 달은 이 값이 없으므로 지금까지처럼 직접 넣은 값을 쓴다. */
+let PREV_KEY=null, PREV_CARRY=null;
+function prevKey(k){
+  const a=String(k||'').split('-').map(Number);
+  if(!a[0]) return null;
+  return a[1]===1 ? (a[0]-1)+'-12' : a[0]+'-'+String(a[1]-1).padStart(2,'0');
+}
+function monLabel(k){ return k ? (+k.slice(5))+'월' : ''; }
+function isBibikAuto(m){ return !!(m && m.bibikManual===false); }
+function applyAutoBibik(){
+  if(!MONTH || PREV_CARRY==null || !isBibikAuto(MONTH)) return false;
+  if(num(MONTH.bibikAccount)===num(PREV_CARRY)) return false;
+  MONTH.bibikAccount=num(PREV_CARRY);   // 화면에만 반영한다. 다음에 저장할 때 같이 올라간다
+  return true;
+}
+async function loadPrevCarry(key){
+  PREV_KEY=null; PREV_CARRY=null;
+  const pk=prevKey(key);
+  if(!DB || !pk || MONTHS.indexOf(pk)<0) return;
+  try{
+    const snap=await DB.doc('months/'+pk).get();
+    if(!snap.exists) return;
+    const c=calc(clone(snap.data()));
+    if(!c) return;
+    PREV_KEY=pk; PREV_CARRY=c.carry;
+    applyAutoBibik();
+    renderSummary();
+  }catch(e){}
 }
 
 /* ===== 실행취소 / 다시실행 =====
@@ -2168,8 +2207,25 @@ function renderBibik(c){
   bi.setAttribute('aria-label','비빅 통장 잔액');
   bi.addEventListener('focus',()=>{bi.value=String(num(bi.value));bi.select();});
   bi.addEventListener('blur',()=>{bi.value=NF.format(num(bi.value));});
-  bi.addEventListener('input',()=>{ MONTH.bibikAccount=num(bi.value); delete MONTH.bibikBalance; save('month'); updateBibikNumbers(); });
-  flow.appendChild(step('통장 잔액', bi, 'edit'));
+  bi.addEventListener('input',()=>{
+    MONTH.bibikAccount=num(bi.value); delete MONTH.bibikBalance;
+    MONTH.bibikManual=true;            // 손으로 고쳤으니 더는 지난 달을 따라가지 않는다
+    save('month'); updateBibikNumbers(); paintBibikSrc();
+  });
+  const acct=step('통장 잔액', bi, 'edit');
+  if(PREV_CARRY!=null){
+    const src=el('button','bb-src'); src.id='bb-src';
+    src.addEventListener('click',()=>{
+      if(isBibikAuto(MONTH)){
+        MONTH.bibikManual=true;
+      }else{
+        MONTH.bibikManual=false; MONTH.bibikAccount=num(PREV_CARRY);
+      }
+      save('month'); renderSummary();
+    });
+    acct.appendChild(src);
+  }
+  flow.appendChild(acct);
   flow.appendChild(opv('−'));
   flow.appendChild(step('이번달 비빅 지출', el('div','v num bibik bb-spend', won(c.bibik))));
   flow.appendChild(opv('='));
@@ -2179,6 +2235,22 @@ function renderBibik(c){
   flow.appendChild(opv('→'));
   flow.appendChild(step('다음 달 이월', el('div','v num bb-carry', won(c.carry)), 'end'));
   box.appendChild(flow);
+  paintBibikSrc();
+}
+/* 통장 잔액이 지난 달에서 온 값인지, 직접 넣은 값인지 알려 준다 */
+function paintBibikSrc(){
+  const b=$('#bb-src'); if(!b) return;
+  const lab=monLabel(PREV_KEY);
+  if(isBibikAuto(MONTH)){
+    b.dataset.on='1';
+    b.textContent='↩ '+lab+' 이월값';
+    b.title=lab+' 의 ‘다음 달 이월’ 을 그대로 따릅니다.\n'
+          + '숫자를 고치거나 여기를 누르면 직접 넣은 값이 됩니다.';
+  }else{
+    b.dataset.on='0';
+    b.textContent='↩ '+lab+' 이월값 '+won(PREV_CARRY)+' 넣기';
+    b.title='누르면 '+lab+' 의 ‘다음 달 이월’ 을 따라갑니다';
+  }
 }
 function updateBibikNumbers(){
   const c=calc(MONTH); if(!c) return;
@@ -3051,6 +3123,7 @@ $('#addmonth').addEventListener('click',async()=>{
 
   const copy=clone(MONTH); copy.month=nm;
   delete copy.issues;                       // 이슈는 새 달로 따라가지 않는다
+  copy.bibikManual=false;                   // 비빅 잔액은 이번 달 이월액을 따라간다
   copy.people.forEach((p,pi)=>p.sections.forEach((sx,si)=>sx.items.forEach((it,ii)=>{
     it.done=false; it.applied=false; it.appliedAmount=0;   // 새 달은 아직 아무것도 납입되지 않았다
     const src=MONTH.people[pi].sections[si].items[ii];
@@ -3059,16 +3132,13 @@ $('#addmonth').addEventListener('click',async()=>{
   })));
   if(typeof pushIssuesInto==='function') pushIssuesInto(copy, nm);   // 카드 이슈를 새 달에 얹는다
   const carry = calc(MONTH).carry;          // 이번 달 비빅 이월액
+  copy.bibikAccount = carry;
   await DB.doc('months/'+nm).set(copy);
   // 이슈에 '어느 달로 갔는지' 가 적혔다. 달을 옮기기 전에 이번 달도 저장한다
   try{ await DB.doc('months/'+MKEY).set(MONTH); }catch(e){}
   if(MONTHS.indexOf(nm)<0){ MONTHS.push(nm); MONTHS.sort(); }
   openMonth(nm);
-  // 항목은 그대로 복사되지만 통장 잔액은 실제 값으로 바꿔야 한다
-  showToast(nm.slice(0,4)+'.'+nm.slice(5)+' 을 만들었습니다 · 비빅 통장 잔액을 '+won(carry)+' 로 맞출까요?',
-    ()=>{ MONTH.bibikAccount=carry; save('month'); renderSummary(); showToast('비빅 통장 잔액을 '+won(carry)+' 로 바꿨습니다.'); });
-  $('#toast-undo').textContent='이월액으로 맞추기';
-  setTimeout(()=>{ const b=$('#toast-undo'); if(b) b.textContent='되돌리기'; }, 7200);
+  showToast(nm.slice(0,4)+'.'+nm.slice(5)+' 을 만들었습니다 · 비빅 통장 잔액은 이월액 '+won(carry)+' 로 들어갑니다');
 });
 $('#delmonth').addEventListener('click', async ()=>{
   if(!DB||!MONTH) return;
@@ -3118,6 +3188,7 @@ function openMonth(key, forced){
   }
   MKEY=key;
   renderMonthBar();
+  PREV_KEY=null; PREV_CARRY=null;
   if(unsubM){unsubM();unsubM=null;}
   if(!DB) return Promise.resolve();
   let settle=null;
@@ -3135,7 +3206,10 @@ function openMonth(key, forced){
   setTimeout(done, 4000);          // 응답이 없어도 언젠가는 진행한다
   // 달을 열 때마다 다음 달 쪽을 한 번 맞춰 본다.
   // 저쪽에서 손수 지운 줄이 있으면 여기서 '지움' 으로 잡힌다.
-  ready.then(()=>{ if(typeof syncIssues==='function') syncIssues(); });
+  ready.then(()=>{
+    if(typeof syncIssues==='function') syncIssues();
+    loadPrevCarry(key);                  // 지난 달 이월액도 같이 가져온다
+  });
   return ready;
 }
 document.addEventListener('focusout',()=>{
