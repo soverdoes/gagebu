@@ -177,6 +177,12 @@ header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--s
   border:1px solid transparent}
 .outlink:hover{color:var(--ink);border-color:var(--line);background:var(--surface-2)}
 .outlink svg{width:10px;height:10px;opacity:.65;flex:none}
+.savebtn{font-weight:600;letter-spacing:.01em}
+.savebtn[data-s="clean"]{opacity:.5;cursor:default}
+.savebtn[data-s="dirty"]{color:#fff;background:var(--accent);border-color:var(--accent)}
+.savebtn[data-s="dirty"]:hover{filter:brightness(1.08)}
+.savebtn[data-s="saving"]{color:var(--pB);border-color:var(--pB)}
+.savebtn[data-s="off"]{color:#fff;background:var(--neg);border-color:var(--neg)}
 .status{font-size:11.5px;color:var(--faint);letter-spacing:.04em;display:flex;align-items:center;gap:6px}
 .status .dot{width:6px;height:6px;border-radius:50%;background:var(--faint)}
 .status[data-s="saving"] .dot{background:var(--pB)}
@@ -851,8 +857,9 @@ tfoot td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--
       <button class="ghost icon" id="btn-undo" title="실행취소 (Ctrl+Z)" disabled>↶</button>
       <button class="ghost icon" id="btn-redo" title="다시 실행 (Ctrl+Shift+Z)" disabled>↷</button>
       <button class="ghost icon" id="btn-theme" title="테마">◐</button>
+      <button class="ghost savebtn" id="btn-save" data-s="clean" disabled>저장됨</button>
       <button class="ghost" id="btn-export" title="현재 데이터를 JSON 파일로 저장합니다"><span
-        class="wide">파일로 저장</span><span class="narrow">저장</span></button>
+        class="wide">파일로 저장</span><span class="narrow">파일</span></button>
       <label class="ghost" for="file-import" title="내보낸 JSON 파일을 불러옵니다"><span
         class="wide">불러오기</span><span class="narrow">열기</span></label>
       <input type="file" id="file-import" accept="application/json,.json" hidden>
@@ -1254,6 +1261,7 @@ function paintUndo(){
 document.addEventListener('keydown', e=>{
   if(!(e.ctrlKey||e.metaKey) || e.altKey) return;
   const k=(e.key||'').toLowerCase();
+  if(k==='s'){ e.preventDefault(); flushSave(); return; }
   if(k==='z' && !e.shiftKey){
     const a=document.activeElement;
     if(a && (a.tagName==='INPUT'||a.tagName==='TEXTAREA')){
@@ -1315,31 +1323,70 @@ function showToast(msg, undo){
 function withUndo(label, fn){ fn(); showToast(label, doUndo); }
 
 /* ---------- saving ---------- */
-let saveT=null, dirty={month:false,assets:false}, savePending=false;
+let dirty={month:false,assets:false}, savePending=false;
 /* 저장 대기 중에 다른 종류의 저장이 또 걸려도 앞의 것을 잃지 않도록 누적한다 */
+/* 고칠 때마다 서버로 보내지 않는다. 표시만 해 두고 손수 저장할 때 한 번에 보낸다.
+   저장하지 않은 동안에는 savePending 이 서 있어서,
+   상대가 저장한 내용이 내가 쓰던 화면을 덮어쓰지 않는다. */
+function isDirty(){ return !!(dirty.month||dirty.assets); }
 function save(kind){
   if(!DB) return;
   pushUndo();
   if(kind!=='assets') dirty.month=true;
   if(kind!=='month')  dirty.assets=true;
   savePending=true;
-  setStatus('saving','저장 중');
-  clearTimeout(saveT);
-  saveT = setTimeout(async()=>{
-    const d=dirty; dirty={month:false,assets:false};
-    try{
-      if(d.month && MONTH) await DB.doc('months/'+MKEY).set(MONTH);
-      if(d.assets && ASSETS) await DB.doc('assets/main').set(ASSETS);
-      const t=new Date();
-      setStatus('saved','저장됨 '+t.getHours()+':'+String(t.getMinutes()).padStart(2,'0'));
-    }catch(e){
-      dirty.month = dirty.month||d.month; dirty.assets = dirty.assets||d.assets;
-      setStatus('off','저장 실패 — '+(e && e.code || ''));
-    }
-    savePending = dirty.month||dirty.assets;
-  },450);
+  paintSave();
 }
 function saveBoth(){ save('both'); }
+
+let saving=false;
+async function flushSave(){
+  if(!DB || !isDirty()) return true;
+  if(saving) return false;
+  saving=true;
+  const d={month:dirty.month, assets:dirty.assets}, key=MKEY;
+  dirty={month:false,assets:false};
+  setStatus('saving','저장 중'); paintSave();
+  try{
+    if(d.month && MONTH) await DB.doc('months/'+key).set(MONTH);
+    if(d.assets && ASSETS) await DB.doc('assets/main').set(ASSETS);
+    savePending=false; saving=false;
+    const t=new Date();
+    setStatus('saved','저장됨 '+t.getHours()+':'+String(t.getMinutes()).padStart(2,'0'));
+    paintSave();
+    return true;
+  }catch(e){
+    dirty.month=dirty.month||d.month; dirty.assets=dirty.assets||d.assets;
+    savePending=true; saving=false;
+    setStatus('off','저장 실패 — '+(e && e.code || ''));
+    paintSave();
+    return false;
+  }
+}
+function paintSave(){
+  const b=$('#btn-save'); if(!b) return;
+  if(saving){ b.dataset.s='saving'; b.textContent='저장 중…'; b.disabled=true;
+              b.title='보내는 중입니다'; return; }
+  b.disabled=false;
+  if(isDirty()){
+    b.dataset.s='dirty'; b.textContent='저장 안 됨';
+    b.title='아직 보내지 않은 변경이 있습니다 — 눌러서 저장 (Ctrl+S)';
+  }else{
+    b.dataset.s='clean'; b.textContent='저장됨'; b.disabled=true;
+    b.title='모두 저장되었습니다';
+  }
+}
+
+/* 저장하지 않고 창을 닫으려 하면 브라우저가 물어본다 */
+window.addEventListener('beforeunload', e=>{
+  if(!isDirty()) return;
+  e.preventDefault(); e.returnValue='';
+});
+/* 폰에서는 창을 닫을 때 beforeunload 가 안 뜨는 일이 많다.
+   화면을 벗어나는 순간 조용히 한 번 보내 두어 잃지 않게 한다. */
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='hidden' && isDirty()) flushSave();
+});
 
 /* ---------- 줄 메뉴 ----------
    자주 쓰지 않는 동작(합계 계산 켜기, 삭제)은 줄에 늘어놓지 않고 ⋯ 안에 둔다. */
@@ -1479,10 +1526,17 @@ function dragHandle(rowEl, arr, obj, after){
 
 /* ---------- editable field helpers ---------- */
 function keyNav(inp, onEnter){
+  /* 엔터는 '다 썼다' 는 뜻이다. 칸을 닫기만 하고 줄을 새로 만들지 않는다.
+     이어서 한 줄 더 쓰고 싶을 때만 Ctrl(⌘)+엔터. */
   inp.addEventListener('keydown',e=>{
-    if(e.key==='Enter'){ e.preventDefault(); inp.blur(); if(onEnter) onEnter(); }
+    if(e.key==='Enter'){
+      e.preventDefault();
+      inp.blur();
+      if((e.ctrlKey||e.metaKey) && onEnter) onEnter();
+    }
     else if(e.key==='Escape'){ e.preventDefault(); inp.blur(); }
   });
+  if(onEnter) inp.title = (inp.title? inp.title+'\n' : '') + '엔터 — 입력 끝 · Ctrl+엔터 — 아래에 한 줄 더';
   return inp;
 }
 function newItem(){ return {id:uid(),done:false,name:'',amount:0,note:'',flag:'',sum:false,
@@ -3046,7 +3100,22 @@ $('#delmonth').addEventListener('click', async ()=>{
   showToast(key.slice(0,4)+'.'+key.slice(5)+' 삭제됨', doUndo);
 });
 
-function openMonth(key){
+function openMonth(key, forced){
+  // 저장하지 않은 채 달을 옮기면 그 달에 고친 내용이 사라진다. 먼저 보낸다.
+  // forced 가 없으면 딱 한 번만 시도한다 — 실패해도 되풀이하지 않는다
+  if(!forced && isDirty()){
+    flushSave().then(ok=>{
+      if(ok){ openMonth(key, true); return; }
+      confirmDialog({
+        title:'저장하지 못했습니다',
+        body:'이 달에 고친 내용이 아직 서버에 올라가지 않았습니다.',
+        list:['달을 옮기면 고친 내용이 사라집니다',
+              '잠시 뒤 저장 버튼을 다시 눌러 보세요'],
+        ok:'그래도 옮기기', danger:true
+      }).then(go=>{ if(go) openMonth(key, true); else renderMonthBar(); });
+    }, ()=>openMonth(key, true));
+    return Promise.resolve();
+  }
   MKEY=key;
   renderMonthBar();
   if(unsubM){unsubM();unsubM=null;}
@@ -3080,6 +3149,8 @@ document.addEventListener('focusout',()=>{
 $('#toast-undo').addEventListener('click',()=>{
   const f=undoFn; undoFn=null; clearTimeout(toastT); $('#toast').hidden=true; if(f) f();
 });
+$('#btn-save').addEventListener('click',()=>flushSave());
+paintSave();
 $('#btn-export').addEventListener('click',saveToFile);
 $('#file-import').addEventListener('change',e=>{ const f=e.target.files[0]; if(f) loadFromFile(f); e.target.value=''; });
 
