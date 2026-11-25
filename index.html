@@ -2911,13 +2911,13 @@ function assetCell(row, kind){
   else if(kind==='name') td.appendChild(textField('', row.name, v=>{row.name=v;save('assets');}, '항목'));
   else if(kind==='memo') td.appendChild(memoField(()=>row.memo, v=>{row.memo=v;save('assets');},
                                         '메모', (row.name||'계좌')+' 메모'));
-  else if(kind==='rate'){ td.className='r'; td.appendChild(textField('', row.rate, v=>{row.rate=v;save('assets');}, '0%')); }
+  else if(kind==='rate'){ td.className='r'; td.appendChild(textField('', row.rate, v=>{row.rate=v;save('assets');refreshCalc(row);}, '0%')); }
   else if(kind==='monthly'){
     td.className='r';
     if(row.type!=='적금'){ td.textContent='—'; td.style.color='var(--faint)'; td.title='적금만 넣습니다'; }
     else{
       td.title='매달 넣는 금액 — 넣으면 만기 예상과 이자가 계산됩니다';
-      td.appendChild(amtField('', num(row.monthly), v=>{row.monthly=v;save('assets');renderAssetsSoon();}));
+      td.appendChild(amtField('', num(row.monthly), v=>{row.monthly=v;save('assets');refreshCalc(row);renderAssetsSoon();}));
     }
   }
   else if(kind==='expected' && savingsEst(row)){
@@ -2929,11 +2929,11 @@ function assetCell(row, kind){
   }
   else if(kind==='amount'||kind==='expected'||kind==='principal'){
     td.className='r';
-    td.appendChild(amtField('', num(row[kind]), v=>{row[kind]=v;save('assets');renderAssetsSoon();}));
+    td.appendChild(amtField('', num(row[kind]), v=>{row[kind]=v;save('assets');if(kind==='amount')refreshCalc(row);renderAssetsSoon();}));
   }
   else if(kind==='maturity'){
     const w=el('div'); w.style.cssText='display:flex;align-items:center;gap:6px';
-    w.appendChild(textField('', row.maturity, v=>{row.maturity=v;save('assets');}, '2027. 1. 1'));
+    w.appendChild(textField('', row.maturity, v=>{row.maturity=v;save('assets');refreshCalc(row);}, '2027. 1. 1'));
     const days=monthsLeft(row.maturity);
     if(days!=null){
       const cls = days<0?' over': days<=90?' soon':'';
@@ -2980,6 +2980,7 @@ function assetTable(g, list){
     cols.forEach(([label,kind])=>{
       const td=assetCell(row,kind);
       td.dataset.label=label;                 // 모바일 카드에서 칸 이름으로 쓴다
+      if(kind==='expected') td._row=row;     // 적금 계산값을 그 자리에서 바꿔 끼우려고
       tr.appendChild(td);
     });
     const last=el('td','acts'); last.dataset.label='';
@@ -3134,11 +3135,25 @@ function renderAssets(){
   const host=$('#a-sections'); host.innerHTML='';
   GROUPS.forEach(g=> host.appendChild(assetSection(g)));
 }
-let raT=null;
+let raT=null, assetsDirty=false;
+/* 적금의 월 납입액·금리·만기·현재 금액이 바뀌면 그 줄의 만기 (예상) 칸만 바로 바꾼다.
+   입력 중엔 표 전체를 다시 그리지 않으므로(커서가 튄다) 요약 타일은 칸을 벗어날 때 갱신한다 */
+function refreshCalc(row){
+  assetsDirty=true;
+  const td=[...document.querySelectorAll('#view-assets td')].find(t=>t._row===row);
+  if(!td || td.contains(document.activeElement)) return;
+  const n=assetCell(row,'expected'); n.dataset.label=td.dataset.label; n._row=row;
+  td.replaceWith(n);
+}
+$('#view-assets').addEventListener('focusout',()=>{
+  if(!assetsDirty) return;
+  assetsDirty=false; renderAssetsSoon();       // 300ms 뒤 — 버튼 클릭을 먹지 않게, 다른 칸에 들어가 있으면 건너뛴다
+});
 function renderAssetsSoon(){
   clearTimeout(raT);
   raT=setTimeout(()=>{
     if(!isEditing()){ renderAssets(); return; }
+    assetsDirty=true;                                          // 다른 칸으로 옮겨 갔다 — 거기서 나갈 때 다시 그린다
     const v=document.querySelector('#a-total .ts-left .v');   // 입력 중엔 총액만 갱신
     if(v) v.textContent=won(assetCalc(allRows()).now);
   },300);
