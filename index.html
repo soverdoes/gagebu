@@ -2809,7 +2809,14 @@ function ymd(d){
 function rateOf(r){ return parseFloat(String(r.rate||'').replace(/[^0-9.]/g,''))||0; }
 function savingsEst(r){
   const P=num(r.monthly), end=ymd(r.maturity);
-  if(r.type!=='적금' || !P || !end) return null;
+  if(r.type!=='적금') return null;
+  /* 주택청약처럼 만기도 월 납입도 없이 넣어 두기만 하는 통장 — 1년치 이자로 본다 */
+  if(!P && !String(r.maturity||'').trim()){
+    const amt=num(r.amount); if(!amt) return null;
+    const interest=Math.round(amt*rateOf(r)/100);
+    return {hold:true, principal:amt, interest, expected:amt+interest};
+  }
+  if(!P || !end) return null;
   const today=new Date(); today.setHours(0,0,0,0);
   let left=0;
   for(let k=1;k<=600;k++){
@@ -2926,7 +2933,10 @@ function assetCell(row, kind){
   else if(kind==='expected' && savingsEst(row)){
     const e=savingsEst(row);
     td.className='r calc'; td.appendChild(el('span','cv',NF.format(e.expected)));
-    td.title='자동 계산 (단리 · 세전)\n'
+    td.title= e.hold
+      ? '자동 계산 — 만기·월 납입 없이 넣어 두는 통장 (세전)\n'
+        +'현재 '+won(e.principal)+' + 1년치 이자 '+won(e.interest)+' (금리 '+rateOf(row)+'%)'
+      : '자동 계산 (단리 · 세전)\n'
       +'원금 '+won(e.principal)+' = 현재 '+won(num(row.amount))+' + 월 '+won(e.P)+' × 남은 '+e.left+'회\n'
       +'이자 '+won(e.interest)+' (총 '+e.N+'회 납입, 금리 '+rateOf(row)+'%)';
   }
