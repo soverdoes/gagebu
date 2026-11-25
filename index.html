@@ -1184,14 +1184,15 @@ function calc(m){
       removed += (s.items||[]).reduce((a,i)=>a+itemRemoved(i),0);
     });
     const spend = gross-adj;
-    return {income, gross, adj, removed, spend, secs, net: income-spend};
+    const bibik = (p.sections||[]).reduce((b,s)=> b + (s.items||[]).reduce((c,i)=> c + itemBibik(i),0),0);
+    // 비빅 지출은 지출 합계에는 안 들어가지만 '남은 돈'도 아니다 — 비빅 통장에서 꺼내 쓸 돈이다
+    return {income, gross, adj, removed, spend, bibik, secs, net: income-spend-bibik};
   });
-  const bibik = (m.people||[]).reduce((a,p)=> a + (p.sections||[]).reduce((b,s)=>
-      b + (s.items||[]).reduce((c,i)=> c + itemBibik(i),0),0),0);
+  const bibik = per.reduce((a,x)=>a+x.bibik,0);
   const totalIn = per.reduce((a,x)=>a+x.income,0);
   const totalOut = per.reduce((a,x)=>a+x.spend,0);
   const savings = per.reduce((a,x)=>a+(x.secs.savings||0),0);
-  const left = totalIn-totalOut;
+  const left = totalIn-totalOut-bibik;
   const account = num(m.bibikAccount!=null ? m.bibikAccount : m.bibikBalance);
   return {per,totalIn,totalOut,savings,bibik,left,
           account, rest: account-bibik, carry: account-bibik+left};
@@ -2715,7 +2716,7 @@ function renderLedger(){
     dk.title='확인은 끝났고 아직 주고받지 않은 금액입니다';
     dd.appendChild(dk); dd.appendChild(el('span','val num f-due','—')); f.appendChild(dd);
     const d1=el('div'); d1.appendChild(el('span','k','지출 합계')); d1.appendChild(el('span','val num f-spend','—')); f.appendChild(d1);
-    const d2=el('div'); d2.appendChild(el('span','k','잔액 (수입 − 지출)')); d2.appendChild(el('span','val num f-net','—')); f.appendChild(d2);
+    const d2=el('div'); d2.appendChild(el('span','k','잔액 (수입 − 지출 − 비빅)')); d2.appendChild(el('span','val num f-net','—')); f.appendChild(d2);
     a.appendChild(f);
     box.appendChild(a);
   });
@@ -2795,13 +2796,25 @@ function assetCalc(rows){
   rows = rows || allRows();
   const now = rows.reduce((a,r)=>a+num(r.amount),0);
   const exp = rows.reduce((a,r)=>a+num(r.expected||r.amount),0);
+  /* 예상 이자: 예금은 만기 예상 − 현재 금액.
+     적금은 앞으로 더 넣을 원금이 있으므로 만기 예상 − 만기 원금. 만기 원금이 비어 있으면 셈에서 뺀다 */
+  let interest=0, base=0, missing=0;
+  rows.forEach(r=>{
+    if(!num(r.expected)) return;
+    if(r.type==='적금'){
+      if(!num(r.payin)){ missing++; return; }
+      interest += num(r.expected)-num(r.payin); base += num(r.payin);
+    }else{
+      interest += num(r.expected)-num(r.amount); base += num(r.amount);
+    }
+  });
   const byOwner={}, byType={}, byBank={};
   rows.forEach(r=>{
     byOwner[r.owner||'미지정']=(byOwner[r.owner||'미지정']||0)+num(r.amount);
     byType[r.type||'기타']=(byType[r.type||'기타']||0)+num(r.amount);
     byBank[r.bank||'기타']=(byBank[r.bank||'기타']||0)+num(r.amount);
   });
-  return {rows,now,exp,byOwner,byType,byBank};
+  return {rows,now,exp,interest,base,missing,byOwner,byType,byBank};
 }
 function monthsLeft(d){
   if(!d) return null;
@@ -2866,6 +2879,14 @@ function assetCell(row, kind){
   else if(kind==='memo') td.appendChild(memoField(()=>row.memo, v=>{row.memo=v;save('assets');},
                                         '메모', (row.name||'계좌')+' 메모'));
   else if(kind==='rate'){ td.className='r'; td.appendChild(textField('', row.rate, v=>{row.rate=v;save('assets');}, '0%')); }
+  else if(kind==='payin'){
+    td.className='r';
+    if(row.type!=='적금'){ td.textContent='—'; td.style.color='var(--faint)'; td.title='적금만 넣습니다'; }
+    else{
+      td.title='만기까지 넣는 원금 합계 (은행 앱의 만기 원금)';
+      td.appendChild(amtField('', num(row.payin), v=>{row.payin=v;save('assets');renderAssetsSoon();}));
+    }
+  }
   else if(kind==='amount'||kind==='expected'||kind==='principal'){
     td.className='r';
     td.appendChild(amtField('', num(row[kind]), v=>{row[kind]=v;save('assets');renderAssetsSoon();}));
@@ -2896,11 +2917,11 @@ function assetCell(row, kind){
 }
 const COLS = {
   main:   [['관리자','owner'],['구분','type'],['은행','bank'],['항목','name'],['현재 금액','amount'],
-           ['만기날짜','maturity'],['금리','rate'],['만기 (예상)','expected'],['메모','memo']],
+           ['만기날짜','maturity'],['금리','rate'],['만기 원금','payin'],['만기 (예상)','expected'],['메모','memo']],
   retire: [['관리자','owner'],['구분','type'],['기관','bank'],['항목','name'],['현재 평가액','amount'],
            ['원금','principal'],['평가손익','pl'],['메모','memo']],
 };
-const RIGHT = {amount:1, expected:1, principal:1, pl:1, rate:1};
+const RIGHT = {amount:1, expected:1, principal:1, pl:1, rate:1, payin:1};
 const TRASH_SVG = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M6.2 2.6h3.6M2.6 4.6h10.8M4.7 4.6l.55 7.9a1.1 1.1 0 0 0 1.1 1h3.3a1.1 1.1 0 0 0 1.1-1l.55-7.9M6.7 7v4M9.3 7v4" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const MOVE_SVG  = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M3 5.5h9M9.5 3l2.5 2.5L9.5 8M13 10.5H4M6.5 8L4 10.5 6.5 13" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -2973,6 +2994,7 @@ function assetTable(g, list){
     if(RIGHT[kind]){ td.className='r num'; td.style.textAlign='right'; }
     if(kind==='amount')    td.textContent=won(c.now);
     if(kind==='expected')  td.textContent=won(c.exp);
+    if(kind==='payin')     td.textContent=won(list.reduce((a,r)=>a+(r.type==='적금'?num(r.payin):0),0));
     if(kind==='principal') td.textContent=won(pl.principal);
     if(kind==='pl' && pl.n){
       td.textContent=(pl.gain>=0?'+':'')+won(pl.gain);
@@ -3009,8 +3031,9 @@ function assetSection(g){
   if(key==='main'){
     box.appendChild(tile('현재 금액', won(c.now), null, rows.length+'개 계좌'));
     box.appendChild(tile('만기 예상 합계', won(c.exp), null, '전 계좌 만기 시'));
-    box.appendChild(tile('예상 이자', won(c.exp-c.now), 'pos',
-      c.now? '+'+Math.round((c.exp-c.now)/c.now*100)+'%' : ''));
+    box.appendChild(tile('예상 이자', won(c.interest), 'pos',
+      c.missing? '적금 '+c.missing+'개는 만기 원금을 넣어야 계산됩니다'
+               : (c.base? '원금 대비 +'+(c.interest/c.base*100).toFixed(1)+'%' : '')));
     const nD=c.byType['예금']||0, nS=c.byType['적금']||0, nI=c.byType['투자']||0;
     const cnt=t=>rows.filter(r=>r.type===t).length;
     box.appendChild(tile('예금', won(nD), null, cnt('예금')+'개 · 전체의 '+(c.now?Math.round(nD/c.now*100):0)+'%'));
@@ -3037,7 +3060,7 @@ function assetSection(g){
     if(!ASSETS) ASSETS={rows:[]};
     ASSETS.rows.push({id:uid(), group:key, owner:OWNERS[0],
       type: key==='retire'?'투자':'적금', bank: key==='retire'?'기타':'하나은행',
-      name:'', amount:0, maturity:'', rate:'', expected:0, principal:0, memo:''});
+      name:'', amount:0, maturity:'', rate:'', expected:0, principal:0, payin:0, memo:''});
     renderAssets(); save('assets');
   });
   sec.appendChild(add);
