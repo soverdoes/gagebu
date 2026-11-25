@@ -625,6 +625,7 @@ th{font-size:11px;letter-spacing:.07em;color:var(--muted);font-weight:600;text-a
 td{padding:4px 8px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
 tr:hover td{background:var(--surface-2)}
 td .f{width:100%}
+td.calc{color:var(--ink-2);cursor:help;text-decoration:underline dotted color-mix(in srgb,var(--ink-2) 40%,transparent);text-underline-offset:3px}
 td.r .f{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
 td select.f{cursor:pointer;-webkit-appearance:none;appearance:none}
 /* 구분 — 월급/비빅/제외 칩과 같은 방식으로 색을 입힌다 */
@@ -2792,19 +2793,51 @@ function visibleRows(g){
   }[F.sort];
   return cmp ? rows.slice().sort(cmp) : rows;
 }
+/* ===== 적금 만기 추정 =====
+   월 납입액(P)·만기날짜·금리(r)·현재 금액으로 계산한다. 일반 적금 단리, 세전.
+   남은 납입 = 만기일에서 한 달씩 거슬러 올라가 오늘 이후인 납입일 수
+   낸 횟수   = 현재 금액 ÷ P (반올림)          총 납입 N = 낸 횟수 + 남은 납입
+   만기 원금 = 현재 금액 + P × 남은 납입
+   이자      = P × r/12 × N(N+1)/2            (n번째로 넣은 돈은 N−n+1 개월 이자를 받는다) */
+function ymd(d){
+  const m=String(d||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  return m ? new Date(+m[1],+m[2]-1,+m[3]) : null;
+}
+function rateOf(r){ return parseFloat(String(r.rate||'').replace(/[^0-9.]/g,''))||0; }
+function savingsEst(r){
+  const P=num(r.monthly), end=ymd(r.maturity);
+  if(r.type!=='적금' || !P || !end) return null;
+  const today=new Date(); today.setHours(0,0,0,0);
+  let left=0;
+  for(let k=1;k<=600;k++){
+    const last=new Date(end.getFullYear(), end.getMonth()-k+1, 0).getDate();   // 31일 → 그 달 말일
+    const t=new Date(end.getFullYear(), end.getMonth()-k, Math.min(end.getDate(), last));
+    if(t>today) left++; else break;
+  }
+  const paid=Math.max(0, Math.round(num(r.amount)/P)), N=paid+left;
+  const principal=num(r.amount)+P*left;
+  const interest=Math.round(P*rateOf(r)/100/12*N*(N+1)/2);
+  return {P, left, paid, N, principal, interest, expected: principal+interest};
+}
+/* 적금은 계산값, 그 밖은 직접 넣은 값 */
+function expectedOf(r){
+  const e=savingsEst(r);
+  return e ? e.expected : num(r.expected||r.amount);
+}
 function assetCalc(rows){
   rows = rows || allRows();
   const now = rows.reduce((a,r)=>a+num(r.amount),0);
-  const exp = rows.reduce((a,r)=>a+num(r.expected||r.amount),0);
+  const exp = rows.reduce((a,r)=>a+expectedOf(r),0);
   /* 예상 이자: 예금은 만기 예상 − 현재 금액.
-     적금은 앞으로 더 넣을 원금이 있으므로 만기 예상 − 만기 원금. 만기 원금이 비어 있으면 셈에서 뺀다 */
+     적금은 월 납입액·만기날짜·금리로 계산한다. 월 납입액이 없으면 셈에서 빼고 개수만 센다 */
   let interest=0, base=0, missing=0;
   rows.forEach(r=>{
-    if(!num(r.expected)) return;
     if(r.type==='적금'){
-      if(!num(r.payin)){ missing++; return; }
-      interest += num(r.expected)-num(r.payin); base += num(r.payin);
+      const e=savingsEst(r);
+      if(!e){ missing++; return; }
+      interest += e.interest; base += e.principal;
     }else{
+      if(!num(r.expected)) return;
       interest += num(r.expected)-num(r.amount); base += num(r.amount);
     }
   });
@@ -2879,13 +2912,20 @@ function assetCell(row, kind){
   else if(kind==='memo') td.appendChild(memoField(()=>row.memo, v=>{row.memo=v;save('assets');},
                                         '메모', (row.name||'계좌')+' 메모'));
   else if(kind==='rate'){ td.className='r'; td.appendChild(textField('', row.rate, v=>{row.rate=v;save('assets');}, '0%')); }
-  else if(kind==='payin'){
+  else if(kind==='monthly'){
     td.className='r';
     if(row.type!=='적금'){ td.textContent='—'; td.style.color='var(--faint)'; td.title='적금만 넣습니다'; }
     else{
-      td.title='만기까지 넣는 원금 합계 (은행 앱의 만기 원금)';
-      td.appendChild(amtField('', num(row.payin), v=>{row.payin=v;save('assets');renderAssetsSoon();}));
+      td.title='매달 넣는 금액 — 넣으면 만기 예상과 이자가 계산됩니다';
+      td.appendChild(amtField('', num(row.monthly), v=>{row.monthly=v;save('assets');renderAssetsSoon();}));
     }
+  }
+  else if(kind==='expected' && savingsEst(row)){
+    const e=savingsEst(row);
+    td.className='r num calc'; td.textContent=won(e.expected);
+    td.title='자동 계산 (단리 · 세전)\n'
+      +'원금 '+won(e.principal)+' = 현재 '+won(num(row.amount))+' + 월 '+won(e.P)+' × 남은 '+e.left+'회\n'
+      +'이자 '+won(e.interest)+' (총 '+e.N+'회 납입, 금리 '+rateOf(row)+'%)';
   }
   else if(kind==='amount'||kind==='expected'||kind==='principal'){
     td.className='r';
@@ -2917,11 +2957,11 @@ function assetCell(row, kind){
 }
 const COLS = {
   main:   [['관리자','owner'],['구분','type'],['은행','bank'],['항목','name'],['현재 금액','amount'],
-           ['만기날짜','maturity'],['금리','rate'],['만기 원금','payin'],['만기 (예상)','expected'],['메모','memo']],
+           ['만기날짜','maturity'],['금리','rate'],['월 납입액','monthly'],['만기 (예상)','expected'],['메모','memo']],
   retire: [['관리자','owner'],['구분','type'],['기관','bank'],['항목','name'],['현재 평가액','amount'],
            ['원금','principal'],['평가손익','pl'],['메모','memo']],
 };
-const RIGHT = {amount:1, expected:1, principal:1, pl:1, rate:1, payin:1};
+const RIGHT = {amount:1, expected:1, principal:1, pl:1, rate:1, monthly:1};
 const TRASH_SVG = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M6.2 2.6h3.6M2.6 4.6h10.8M4.7 4.6l.55 7.9a1.1 1.1 0 0 0 1.1 1h3.3a1.1 1.1 0 0 0 1.1-1l.55-7.9M6.7 7v4M9.3 7v4" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const MOVE_SVG  = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M3 5.5h9M9.5 3l2.5 2.5L9.5 8M13 10.5H4M6.5 8L4 10.5 6.5 13" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -2994,7 +3034,7 @@ function assetTable(g, list){
     if(RIGHT[kind]){ td.className='r num'; td.style.textAlign='right'; }
     if(kind==='amount')    td.textContent=won(c.now);
     if(kind==='expected')  td.textContent=won(c.exp);
-    if(kind==='payin')     td.textContent=won(list.reduce((a,r)=>a+(r.type==='적금'?num(r.payin):0),0));
+    if(kind==='monthly')   td.textContent=won(list.reduce((a,r)=>a+(r.type==='적금'?num(r.monthly):0),0));
     if(kind==='principal') td.textContent=won(pl.principal);
     if(kind==='pl' && pl.n){
       td.textContent=(pl.gain>=0?'+':'')+won(pl.gain);
@@ -3032,7 +3072,7 @@ function assetSection(g){
     box.appendChild(tile('현재 금액', won(c.now), null, rows.length+'개 계좌'));
     box.appendChild(tile('만기 예상 합계', won(c.exp), null, '전 계좌 만기 시'));
     box.appendChild(tile('예상 이자', won(c.interest), 'pos',
-      c.missing? '적금 '+c.missing+'개는 만기 원금을 넣어야 계산됩니다'
+      c.missing? '적금 '+c.missing+'개는 월 납입액을 넣어야 계산됩니다'
                : (c.base? '원금 대비 +'+(c.interest/c.base*100).toFixed(1)+'%' : '')));
     const nD=c.byType['예금']||0, nS=c.byType['적금']||0, nI=c.byType['투자']||0;
     const cnt=t=>rows.filter(r=>r.type===t).length;
@@ -3060,7 +3100,7 @@ function assetSection(g){
     if(!ASSETS) ASSETS={rows:[]};
     ASSETS.rows.push({id:uid(), group:key, owner:OWNERS[0],
       type: key==='retire'?'투자':'적금', bank: key==='retire'?'기타':'하나은행',
-      name:'', amount:0, maturity:'', rate:'', expected:0, principal:0, payin:0, memo:''});
+      name:'', amount:0, maturity:'', rate:'', expected:0, principal:0, monthly:0, memo:''});
     renderAssets(); save('assets');
   });
   sec.appendChild(add);
