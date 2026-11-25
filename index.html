@@ -625,7 +625,10 @@ th{font-size:11px;letter-spacing:.07em;color:var(--muted);font-weight:600;text-a
 td{padding:4px 8px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
 tr:hover td{background:var(--surface-2)}
 td .f{width:100%}
-td.calc{color:var(--ink-2);cursor:help;text-decoration:underline dotted color-mix(in srgb,var(--ink-2) 40%,transparent);text-underline-offset:3px}
+/* 적금 만기 (예상) 계산값 — 입력칸과 같은 자리·글꼴에 놓고 점선 밑줄로만 구분한다 */
+td.calc{text-align:right;cursor:help}
+td.calc .cv{display:block;padding:2px 3px;font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--ink-2);
+  text-decoration:underline dotted color-mix(in srgb,var(--ink-2) 45%,transparent);text-underline-offset:3px}
 td.r .f{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
 td select.f{cursor:pointer;-webkit-appearance:none;appearance:none}
 /* 구분 — 월급/비빅/제외 칩과 같은 방식으로 색을 입힌다 */
@@ -2922,7 +2925,7 @@ function assetCell(row, kind){
   }
   else if(kind==='expected' && savingsEst(row)){
     const e=savingsEst(row);
-    td.className='r num calc'; td.textContent=won(e.expected);
+    td.className='r calc'; td.appendChild(el('span','cv',NF.format(e.expected)));
     td.title='자동 계산 (단리 · 세전)\n'
       +'원금 '+won(e.principal)+' = 현재 '+won(num(row.amount))+' + 월 '+won(e.P)+' × 남은 '+e.left+'회\n'
       +'이자 '+won(e.interest)+' (총 '+e.N+'회 납입, 금리 '+rateOf(row)+'%)';
